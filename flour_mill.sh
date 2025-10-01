@@ -17,7 +17,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 banner() {
     echo -e "${BLU}================================${NC}"
-    echo -e "${BLU}  Auto Recon Tool Suggester${NC}"
+    echo -e "${BLU}  Auto Recon Tool               ${NC}"
     echo -e "${BLU}================================${NC}\n"
 }
 
