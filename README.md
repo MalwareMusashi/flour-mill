@@ -1,8 +1,6 @@
-# flour_mill
-# This is still a work in progress.
-# Auto Recon Tool
+# Flour Mill
 
-Quick script to automate the boring recon stuff. Runs nmap, parses results, then suggests tools based on what ports/services are open.
+Auto recon tool that runs nmap, parses results, and suggests relevant tools based on open ports/services.
 
 ## What it does
 
@@ -59,10 +57,20 @@ TARGET=192.168.1.100 ./flour_mill.sh
 - **Stealth**: SYN scan, slow timing
 - **Custom**: Enter your own nmap flags
 
+### Output directories
+
+The script will ask where you want to save scans:
+
+1. **Documents folder** - Saves to `~/Documents/scans/` (default)
+2. **Current directory** - Saves to `./scans/` where you ran the script
+3. **Custom path** - Specify your own location
+
 ### Example workflow
 
 ```
 $ ./flour_mill.sh
+
+[Shows cool flour mill ASCII art]
 
 [*] checking for tools...
 [+] nmap
@@ -76,6 +84,8 @@ scan type:
 1) quick (top 1k)
 2) standard (all ports + versions)
 3) full aggressive
+4) stealth
+5) custom
 > 2
 
 verbosity:
@@ -84,11 +94,15 @@ verbosity:
 3) -vv
 > 1
 
-output dir (default: ./scans): 
+save scans to:
+1) Documents folder
+2) current directory
+3) custom path
+> 1
 
 [+] configured
     flags: -sS -sV -sC -p-
-    output: ./scans/10.10.10.50_20241001_143022
+    output: /home/user/Documents/scans/10.10.10.50_20241001_143022
 
 [*] running nmap...
 ...
@@ -115,10 +129,10 @@ running: ssh-audit 10.10.10.50
 
 ## Output
 
-Everything gets saved to `./scans/TARGET_TIMESTAMP/`:
+Everything gets saved to your chosen location with target and timestamp:
 
 ```
-scans/
+Documents/scans/
 └── 10.10.10.50_20241001_143022/
     ├── nmap.txt          # normal output
     ├── nmap.xml          # xml format
@@ -169,19 +183,25 @@ sudo apt install nmap
 - Make sure the tool is actually installed and in your PATH
 - Run `which <toolname>` to verify
 
+**Can't find output files**
+- Check the path shown in the summary
+- Default is Documents/scans/ if you chose option 1
+- Use `find ~ -name "nmap.txt"` to locate them
+
 ## Notes
 
 - Script only suggests tools it detects are installed
 - You control what runs - it asks before executing anything
 - Custom commands are supported for every tool
 - Logs are timestamped so you can run multiple scans without overwriting
+- Output directories are organized by target and timestamp
 
 ## Example output structure
 
 After a full run against a Windows box:
 
 ```
-./scans/192.168.1.50_20241001_150000/
+~/Documents/scans/192.168.1.50_20241001_150000/
 ├── nmap.txt
 ├── nmap.xml
 ├── nmap.gnmap
