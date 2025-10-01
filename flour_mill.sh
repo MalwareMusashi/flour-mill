@@ -52,7 +52,7 @@ banner() {
  ╚═══════════════════════════════════════════════════════════════════════╝
  
                     ╔════════════════════════════════════════╗
-                    ║            Auto Recon Tool             ║
+                    ║    Auto Recon Tool Suggester           ║
                     ║    scan → parse → suggest → execute    ║
                     ╚════════════════════════════════════════╝
 EOF
@@ -125,7 +125,9 @@ setup_scan() {
     echo "2) standard (all ports + versions)"
     echo "3) full aggressive"
     echo "4) stealth"
-    echo "5) custom"
+    echo "5) udp scan (top 1k udp ports)"
+    echo "6) udp full (all udp ports - slow)"
+    echo "7) custom"
     read -p "> " choice
     
     case $choice in
@@ -133,7 +135,9 @@ setup_scan() {
         2) flags="-sS -sV -sC -p-" ;;
         3) flags="-A -p- -T4" ;;
         4) flags="-sS -f -T2" ;;
-        5) read -p "nmap flags: " flags ;;
+        5) flags="-sU -F" ;;
+        6) flags="-sU -p-" ;;
+        7) read -p "nmap flags: " flags ;;
         *) flags="-sS -sV -sC -p-" ;;
     esac
     
@@ -198,6 +202,63 @@ parse_scan() {
     echo ""
 }
 
+# look for vulns
+check_vulns() {
+    local svc=$1
+    local ver=$2
+    
+    echo -e "\n${YEL}[*] checking vulns...${NC}"
+    
+    # clean it up
+    search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
+    
+    # need internet
+    ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}[-] no internet${NC}"; return; }
+    
+    command -v curl &>/dev/null || { echo -e "${RED}[-] need curl${NC}"; return; }
+    
+    # nvd check
+    echo -e "${BLU}[*] nvd: $search${NC}"
+    cves=$(curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${search// /%20}" 2>/dev/null)
+    
+    if echo "$cves" | grep -q "CVE-"; then
+        echo -e "${RED}[!] found cves:${NC}"
+        echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
+            echo -e "    ${RED}→${NC} $c - https://nvd.nist.gov/vuln/detail/$c"
+        done
+    else
+        echo -e "${GRN}[+] nothing in nvd${NC}"
+    fi
+    
+    # github
+    echo -e "\n${BLU}[*] github...${NC}"
+    gh="${search// /+}+exploit"
+    repos=$(curl -s "https://api.github.com/search/repositories?q=${gh}&sort=stars&order=desc" 2>/dev/null)
+    
+    if echo "$repos" | grep -q '"full_name"'; then
+        echo -e "${YEL}[!] repos:${NC}"
+        echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
+            echo -e "    ${YEL}→${NC} github.com/$r"
+        done
+    else
+        echo -e "${GRN}[+] nothing on github${NC}"
+    fi
+    
+    # searchsploit
+    if command -v searchsploit &>/dev/null; then
+        echo -e "\n${BLU}[*] exploit-db...${NC}"
+        ex=$(searchsploit "$search" 2>/dev/null | grep -v "Exploits: No Results")
+        
+        if [[ -n "$ex" ]]; then
+            echo -e "${RED}[!] found:${NC}"
+            echo "$ex" | head -5
+        else
+            echo -e "${GRN}[+] nothing in edb${NC}"
+        fi
+    fi
+    
+    echo ""
+}
 # figure out what to run based on port/service
 get_suggestions() {
     p=$1
@@ -215,7 +276,7 @@ get_suggestions() {
             [[ "$svc" =~ netbios|microsoft-ds|smb ]] && {
                 echo "enum4linux|smb enum|enum4linux -a $TARGET"
                 echo "smbclient|list shares|smbclient -L //$TARGET -N"
-                echo "crackmapexec|smb attacks|crackmapexec smb $TARGET -u '' -p ''"
+                echo "netexec|smb attacks|netexec smb $TARGET -u '' -p ''"
             }
             ;;
         3389)
@@ -262,10 +323,20 @@ run_tools() {
     while read line; do
         p=$(echo "$line" | awk '{print $1}' | cut -d'/' -f1)
         svc=$(echo "$line" | awk '{print $3}')
+        ver=$(echo "$line" | awk '{for(i=4;i<=NF;i++) printf "%s ", $i}' | xargs)
         
         echo -e "${BLU}============================================${NC}"
         echo -e "${YEL}port $p - $svc${NC}"
+        if [[ -n "$ver" ]]; then
+            echo -e "${YEL}version: $ver${NC}"
+        fi
         echo -e "${BLU}============================================${NC}"
+        
+        # check vulns if got version
+        if [[ -n "$ver" ]]; then
+            read -p "check vulns? (y/n): " chk
+            [[ "$chk" =~ ^[Yy]$ ]] && check_vulns "$svc" "$ver"
+        fi
         
         sugg=$(get_suggestions "$p" "$svc")
         
