@@ -1,2 +1,2 @@
 # flour-mill
-Auto Recon too
+Auto Recon tool
