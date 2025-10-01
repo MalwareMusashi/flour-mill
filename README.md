@@ -34,9 +34,37 @@ more tools installed = more suggestions
 
 ## setup
 
+**quick setup:**
 ```bash
 chmod +x flour_mill.sh
 ./flour_mill.sh
+```
+
+**install to PATH (run from anywhere):**
+```bash
+# clone or download
+git clone https://github.com/yourusername/flour_mill.git
+cd flour_mill
+
+# make executable
+chmod +x flour_mill.sh
+
+# copy to local bin
+sudo cp flour_mill.sh /usr/local/bin/flour_mill
+
+# now run from anywhere
+flour_mill
+```
+
+**or symlink it:**
+```bash
+# from the repo directory
+sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
+```
+
+**uninstall:**
+```bash
+sudo rm /usr/local/bin/flour_mill
 ```
 
 ## usage
