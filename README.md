@@ -1,5 +1,5 @@
 # flour-mill
-# Auto Recon Tool Suggester
+# Auto Recon Tool
 
 Quick script to automate the boring recon stuff. Runs nmap, parses results, then suggests tools based on what ports/services are open.
 
