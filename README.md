@@ -33,7 +33,7 @@ The more you have installed, the more suggestions you'll get.
 ## Setup
 
 ```bash
-chmod +x auto_recon.sh
+chmod +x flour_mill.sh
 ```
 
 That's it.
@@ -41,13 +41,13 @@ That's it.
 ## Usage
 
 ```bash
-./auto_recon.sh
+./flour_mill.sh
 ```
 
 Or set target as env var:
 
 ```bash
-TARGET=192.168.1.100 ./auto_recon.sh
+TARGET=192.168.1.100 ./flour_mill.sh
 ```
 
 ### Scan types
@@ -61,7 +61,7 @@ TARGET=192.168.1.100 ./auto_recon.sh
 ### Example workflow
 
 ```
-$ ./auto_recon.sh
+$ ./flour_mill.sh
 
 [*] checking for tools...
 [+] nmap
