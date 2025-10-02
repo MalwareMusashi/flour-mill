@@ -199,10 +199,12 @@ run_scan() {
     
     cmd="sudo nmap $flags $verb -oN $nmapout -oX $nmapxml -oG $nmapgrep $TARGET"
     
-    echo -e "${BLU}$cmd${NC}\n"
+    echo -e "${BLU}[*] scan starting...${NC}"
+    echo -e "${BLU}    cmd: $cmd${NC}"
+    echo -e "${BLU}    this might take a while...${NC}\n"
     
     if eval "$cmd"; then
-        echo -e "\n${GRN}[+] scan done${NC}\n"
+        echo -e "\n${GRN}[+] scan completed${NC}\n"
     else
         echo -e "\n${RED}[!] scan failed${NC}"
         exit 1
@@ -394,13 +396,15 @@ run_tools() {
                 
                 [[ -z "$usercmd" ]] && usercmd="$example"
                 
-                echo -e "\n${BLU}running: $usercmd${NC}\n"
+                echo -e "\n${BLU}[*] starting $tool...${NC}"
+                echo -e "${BLU}    running: $usercmd${NC}\n"
                 
                 log="$OUTDIR/logs/${tool}_p${p}_${TIMESTAMP}.txt"
                 
                 eval "$usercmd" 2>&1 | tee "$log"
                 
-                echo -e "\n${GRN}[+] saved to $log${NC}"
+                echo -e "\n${GRN}[+] $tool completed${NC}"
+                echo -e "${GRN}[+] saved to $log${NC}"
             else
                 echo -e "${YEL}skipped${NC}"
             fi
