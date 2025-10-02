@@ -1,64 +1,66 @@
 # Flour Mill
 
-auto recon tool - runs nmap, parses results, checks for vulns, suggests tools
+automated pentesting recon tool - scans ports, detects os, checks vulns, suggests tools, installs missing stuff
 
 ## what it does
 
-1. checks what tools you got
-2. offers to install netexec if missing
-3. runs nmap (your choice of scan type)
-4. parses open ports/services
-5. checks CVEs and github for exploits
-6. suggests tools for each service
-7. runs them interactively
-8. logs everything
+1. checks what tools you got installed
+2. **auto-installs missing tools** (asks first)
+3. pings target and **detects OS from TTL**
+4. runs nmap (tcp or udp, your choice)
+5. parses open ports/services
+6. **checks CVEs, github, exploit-db** for each service
+7. suggests tools for each port
+8. runs them interactively
+9. logs everything with timestamps
+10. **shows summary with timing and vulns found**
 
 ## requirements
 
-**need:**
+**must have:**
 - nmap
 - sudo
 - curl (for vuln checks)
+- internet (for auto-install and vuln lookups)
 
-**optional (script checks these):**
-- netexec (script can install this for you via pipx)
-- kerbrute, impacket tools
+**optional (script offers to install these):**
+- netexec (replaces crackmapexec)
+- kerbrute
+- impacket tools (GetNPUsers, GetUserSPNs)
 - enum4linux, smbclient
 - hydra, medusa
 - nikto, gobuster, dirb, sqlmap
 - ssh-audit, msfconsole, responder
 - ldapsearch, dig, dnsenum
-- searchsploit (for exploit-db lookups)
+- searchsploit
 
-more tools installed = more suggestions
+script will ask to install any missing tools automatically
 
 ## setup
 
-**quick setup:**
+**basic:**
 ```bash
 chmod +x flour_mill.sh
 ./flour_mill.sh
 ```
 
-**install to PATH (run from anywhere):**
+**install globally (run from anywhere):**
 ```bash
-# clone or download
+# clone
 git clone https://github.com/yourusername/flour_mill.git
 cd flour_mill
 
-# make executable
 chmod +x flour_mill.sh
 
-# copy to local bin
+# copy to bin
 sudo cp flour_mill.sh /usr/local/bin/flour_mill
 
-# now run from anywhere
+# now just run
 flour_mill
 ```
 
-**or symlink it:**
+**or symlink:**
 ```bash
-# from the repo directory
 sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
 ```
 
@@ -73,7 +75,7 @@ sudo rm /usr/local/bin/flour_mill
 ./flour_mill.sh
 ```
 
-or
+or with target preset:
 
 ```bash
 TARGET=192.168.1.100 ./flour_mill.sh
@@ -86,72 +88,116 @@ TARGET=192.168.1.100 ./flour_mill.sh
 3. full - aggressive, OS detection
 4. stealth - SYN scan, slow timing
 5. udp - top 1k udp ports
-6. udp full - all udp ports (slow af)
-7. custom - your own flags
+6. udp full - all udp ports (very slow)
+7. custom - enter your own nmap flags
 
-### where stuff saves
+### output locations
 
-picks one:
 1. Documents folder - `~/Documents/scans/` (default)
-2. current dir - `./scans/`
-3. custom path - wherever you want
+2. current directory - `./scans/`
+3. custom path - specify your own
 
-### netexec auto install
+### auto-install feature
 
-if netexec isnt found:
+when script runs, if tools are missing:
+
 ```
-[!] netexec not found
-install netexec via pipx? (y/n): y
+[*] checking for tools...
+[+] nmap
+[-] netexec
+[-] kerbrute
+...
 
+found: 8 | missing: 5
+
+[!] found 5 missing tools
+install missing tools? (y/n): y
+
+[*] installing tools...
+[*] installing pipx first...
 [*] installing netexec...
-[*] pipx not found, installing pipx first...
-[installs pipx and netexec]
-[+] netexec installed successfully
+[+] netexec installed
+[*] installing kerbrute...
+[+] kerbrute installed
+...
+
+installed successfully
+available: 13 | still missing: 0
 ```
+
+handles:
+- python tools via pipx (netexec, impacket)
+- github releases (kerbrute)
+- apt packages (everything else)
+
+### os detection
+
+script pings target and detects os from TTL:
+
+```
+[*] checking target...
+[+] target is up
+[+] likely running: Windows (ttl=128)
+```
+
+ttl ranges:
+- 250-256: OpenBSD/Cisco/Oracle
+- 120-130: Windows
+- 60-70: Linux
 
 ### vuln checking
 
-for each service with version info:
+for each service with version:
+
 ```
-port 22 - ssh
-version: OpenSSH 7.4
+port 445 - smb
+version: Samba 3.0.20
 
 check vulns? (y/n): y
 
 [*] checking vulns...
-[*] nvd: OpenSSH 7.4
+[*] nvd: Samba 3.0.20
 [!] found cves:
-    → CVE-2018-15473 - https://nvd.nist.gov/vuln/detail/CVE-2018-15473
+    → CVE-2007-2447 - https://nvd.nist.gov/vuln/detail/CVE-2007-2447
 
 [*] github...
 [!] repos:
-    → github.com/username/openssh-exploit
+    → github.com/amriunix/CVE-2007-2447
 
 [*] exploit-db...
 [!] found:
-OpenSSH 7.4 - User Enumeration
+Samba 3.0.20 < 3.0.25rc3 - 'Username' map script' Command Execution
 ```
 
 checks:
-- NVD (NIST vuln database)
-- github (for public exploits)
-- exploit-db (if searchsploit installed)
+- NVD (NIST vulnerability database)
+- github repos (sorted by stars)
+- exploit-db (via searchsploit)
+
+all vulns saved to `vulns_summary.txt` in output dir
 
 ### example run
 
 ```
 $ ./flour_mill.sh
 
-[shows flour mill art]
+[flour mill ascii art]
 
 [*] checking for tools...
 [+] nmap
-[+] enum4linux
 [-] netexec
 ...
 
-[!] netexec not found
-install netexec via pipx? (y/n): n
+[!] found 3 missing tools
+install missing tools? (y/n): y
+
+[*] installing tools...
+[+] netexec installed
+...
+
+[*] checking target...
+[+] target is up
+[+] likely running: Windows (ttl=128)
 
 target ip/hostname: 10.10.10.3
 
@@ -179,7 +225,7 @@ save scans to:
 
 [+] configured
     flags: -sS -sV -sC -p-
-    output: /home/user/Documents/scans/10.10.10.3_20241001_143022
+    output: /home/user/Documents/scans/10.10.10.3_20241002_153022
 
 [*] running nmap...
 ...
@@ -205,32 +251,49 @@ check vulns? (y/n): y
 tool: netexec
 desc: smb attacks
 example: netexec smb 10.10.10.3 -u '' -p ''
-[-] not installed
-
-tool: enum4linux
-desc: smb enum
-example: enum4linux -a 10.10.10.3
 [+] available
 run? (y/n): y
 ...
+
+========== SUMMARY ==========
+
+target: 10.10.10.3
+os detected: Windows
+scan type: standard
+time: 5m 23s
+timestamp: 20241002_153022
+
+files:
+  nmap: /home/user/Documents/scans/10.10.10.3_20241002_153022/nmap.txt
+  xml: /home/user/Documents/scans/10.10.10.3_20241002_153022/nmap.xml
+  ports: /home/user/Documents/scans/10.10.10.3_20241002_153022/ports.txt
+  tool logs: 3 in /home/user/Documents/scans/10.10.10.3_20241002_153022/logs/
+
+found 2 open ports
+
+vulnerabilities found:
+[smb:Samba 3.0.20] CVE-2007-2447
+[smb:Samba 3.0.20] github.com/amriunix/CVE-2007-2447
+
+done
 ```
 
 ## output structure
 
 ```
-~/Documents/scans/
-└── 10.10.10.3_20241001_143022/
-    ├── nmap.txt
-    ├── nmap.xml
-    ├── nmap.gnmap
-    ├── ports.txt
-    └── logs/
-        ├── enum4linux_p445_20241001_143022.txt
-        ├── gobuster_p80_20241001_143022.txt
-        └── ssh-audit_p22_20241001_143022.txt
+~/Documents/scans/10.10.10.3_20241002_153022/
+├── nmap.txt
+├── nmap.xml
+├── nmap.gnmap
+├── ports.txt
+├── vulns_summary.txt      # all found vulns
+└── logs/
+    ├── netexec_p445_20241002_153022.txt
+    ├── enum4linux_p445_20241002_153022.txt
+    └── gobuster_p80_20241002_153022.txt
 ```
 
-## port -> tool mappings
+## port → tool mappings
 
 | port | service | tools |
 |------|---------|-------|
@@ -245,14 +308,14 @@ run? (y/n): y
 
 ## tips
 
-- need sudo for syn scans
+- run as sudo (needed for syn/udp scans)
 - have wordlists in `/usr/share/wordlists/`
-- can edit commands before running
-- everything auto-logs
 - vuln checks need internet
-- searchsploit optional but useful
+- script auto-installs tools but you can skip
+- all output timestamped and organized
+- vulns saved to summary file
 
-## issues
+## common issues
 
 **"need nmap installed"**
 ```bash
@@ -260,43 +323,54 @@ sudo apt install nmap
 ```
 
 **"scan failed"**
-- check sudo
-- ping target first
-- try stealth scan
+- verify sudo access
+- ping target manually first
+- try stealth scan if filtered
 
-**"no internet" for vuln checks**
+**"no internet" during vuln checks**
 - need curl: `sudo apt install curl`
-- need working internet connection
-- skips vuln check if offline
+- check network connection
+- vuln checks will be skipped
 
-**tools not showing**
-- check PATH
-- `which <tool>` to verify
-- install missing ones
-
-**netexec install fails**
+**tool install fails**
 ```bash
-# manual install
+# manual installs
 sudo apt install pipx
 pipx install git+https://github.com/Pennyw0rth/NetExec
+pipx install impacket
+
+# kerbrute
+wget https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64
+chmod +x kerbrute_linux_amd64
+sudo mv kerbrute_linux_amd64 /usr/local/bin/kerbrute
 ```
 
-## notes
+**can't find output**
+- check path in summary
+- default: `~/Documents/scans/`
+- use `find ~ -name "nmap.txt"` to locate
 
-- only suggests installed tools
-- you control what runs
-- logs timestamped
-- vuln checks optional per service
-- works on tcp and udp
+## features
+
+- **auto tool installation** - installs missing tools automatically
+- **os detection** - detects target os from ping ttl
+- **vuln checking** - searches nvd, github, exploit-db
+- **tcp/udp scanning** - supports both protocols
+- **timing stats** - shows how long everything took
+- **organized output** - timestamped dirs and files
+- **vuln aggregation** - all findings in one summary file
+
+## changelog
+
+- added auto-install for all tools (not just netexec)
+- added os detection from ttl values
+- added vuln summary file
+- added timing to summary output
+- added port counting in summary
+- improved install process (handles pipx, apt, github)
+- supports udp scanning
 - netexec replaces crackmapexec
-
-made for ctfs and quick pentests. speeds up the boring enum phase.
 
 ---
 
-**changelog:**
-- replaced crackmapexec with netexec
-- added auto-install for netexec
-- added cve/exploit checking (nvd, github, exploit-db)
-- added udp scan options
-- output defaults to Documents folder
+built for ctfs and quick pentests. automates the boring enum stuff so you can focus on exploitation.
