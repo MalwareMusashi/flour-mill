@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# quick recon script - automates the boring stuff
-# runs nmap then suggests tools based on what's open
+# flour mill - automated recon tool
+# scans ports, checks vulns, suggests tools
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
@@ -52,9 +52,8 @@ banner() {
  ╚═══════════════════════════════════════════════════════════════════════╝
  
                     ╔════════════════════════════════════════╗
-                    ║           Auto Recon Tool              ║
-                    ║           Flour Mill v1.0              ║ 
-                    ║    scan → parse → suggest → execute    ║
+                    ║         Flour Mill v1.0                ║
+                    ║    scan → parse → exploit              ║
                     ╚════════════════════════════════════════╝
 EOF
     echo -e "${NC}\n"
@@ -132,14 +131,38 @@ setup_scan() {
     read -p "> " choice
     
     case $choice in
-        1) flags="-sS -F" ;;
-        2) flags="-sS -sV -sC -p-" ;;
-        3) flags="-A -p- -T4" ;;
-        4) flags="-sS -f -T2" ;;
-        5) flags="-sU -F" ;;
-        6) flags="-sU -p-" ;;
-        7) read -p "nmap flags: " flags ;;
-        *) flags="-sS -sV -sC -p-" ;;
+        1) 
+            flags="-sS -F"
+            SCAN_TYPE="quick"
+            ;;
+        2) 
+            flags="-sS -sV -sC -p-"
+            SCAN_TYPE="standard"
+            ;;
+        3) 
+            flags="-A -p- -T4"
+            SCAN_TYPE="full"
+            ;;
+        4) 
+            flags="-sS -f -T2"
+            SCAN_TYPE="stealth"
+            ;;
+        5) 
+            flags="-sU -F"
+            SCAN_TYPE="udp"
+            ;;
+        6) 
+            flags="-sU -p-"
+            SCAN_TYPE="udp-full"
+            ;;
+        7) 
+            read -p "nmap flags: " flags
+            SCAN_TYPE="custom"
+            ;;
+        *) 
+            flags="-sS -sV -sC -p-"
+            SCAN_TYPE="standard"
+            ;;
     esac
     
     echo -e "\n${YEL}verbosity:${NC}"
@@ -218,6 +241,8 @@ check_vulns() {
     
     command -v curl &>/dev/null || { echo -e "${RED}[-] need curl${NC}"; return; }
     
+    vuln_found=false
+    
     # nvd check
     echo -e "${BLU}[*] nvd: $search${NC}"
     cves=$(curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${search// /%20}" 2>/dev/null)
@@ -226,7 +251,9 @@ check_vulns() {
         echo -e "${RED}[!] found cves:${NC}"
         echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
             echo -e "    ${RED}→${NC} $c - https://nvd.nist.gov/vuln/detail/$c"
+            echo "[$svc:$ver] $c" >> "$OUTDIR/vulns_summary.txt"
         done
+        vuln_found=true
     else
         echo -e "${GRN}[+] nothing in nvd${NC}"
     fi
@@ -240,7 +267,9 @@ check_vulns() {
         echo -e "${YEL}[!] repos:${NC}"
         echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
             echo -e "    ${YEL}→${NC} github.com/$r"
+            echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns_summary.txt"
         done
+        vuln_found=true
     else
         echo -e "${GRN}[+] nothing on github${NC}"
     fi
@@ -253,6 +282,8 @@ check_vulns() {
         if [[ -n "$ex" ]]; then
             echo -e "${RED}[!] found:${NC}"
             echo "$ex" | head -5
+            echo "$ex" | head -5 >> "$OUTDIR/vulns_summary.txt"
+            vuln_found=true
         else
             echo -e "${GRN}[+] nothing in edb${NC}"
         fi
@@ -382,17 +413,51 @@ run_tools() {
 
 summary() {
     echo -e "\n${BLU}========== SUMMARY ==========${NC}\n"
-    echo -e "target: $TARGET"
-    echo -e "timestamp: $TIMESTAMP"
-    echo -e "output: $OUTDIR\n"
+    
+    # calculate time
+    end_time=$(date +%s)
+    elapsed=$((end_time - start_time))
+    
+    if [ $elapsed -gt 3600 ]; then
+        hours=$((elapsed / 3600))
+        mins=$(((elapsed % 3600) / 60))
+        secs=$(((elapsed % 3600) % 60))
+        time_str="${hours}h ${mins}m ${secs}s"
+    elif [ $elapsed -gt 60 ]; then
+        mins=$((elapsed / 60))
+        secs=$((elapsed % 60))
+        time_str="${mins}m ${secs}s"
+    else
+        time_str="${elapsed}s"
+    fi
+    
+    echo -e "${YEL}target:${NC} $TARGET"
+    echo -e "${YEL}os detected:${NC} ${os:-unknown}"
+    echo -e "${YEL}scan type:${NC} $SCAN_TYPE"
+    echo -e "${YEL}time:${NC} $time_str"
+    echo -e "${YEL}timestamp:${NC} $TIMESTAMP\n"
     
     echo -e "${GRN}files:${NC}"
     echo -e "  nmap: $nmapout"
     echo -e "  xml: $nmapxml"
     echo -e "  ports: $OUTDIR/ports.txt"
     
+    # count logs
     logs=$(ls -1 "$OUTDIR/logs" 2>/dev/null | wc -l)
     echo -e "  tool logs: $logs in $OUTDIR/logs/\n"
+    
+    # count open ports
+    if [ -f "$OUTDIR/ports.txt" ]; then
+        port_count=$(wc -l < "$OUTDIR/ports.txt")
+        echo -e "${GRN}found ${port_count} open ports${NC}\n"
+    fi
+    
+    # show vulns found if checked
+    if [ -f "$OUTDIR/vulns_summary.txt" ]; then
+        echo -e "${RED}vulnerabilities found:${NC}"
+        cat "$OUTDIR/vulns_summary.txt"
+        echo ""
+    fi
     
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo -e "${YEL}missing tools:${NC}"
