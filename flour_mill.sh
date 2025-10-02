@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# flour mill - automated recon tool
-# scans ports, checks vulns, suggests tools
+# flour mill
+# automated recon - scans, checks vulns, runs tools
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
@@ -14,93 +14,165 @@ MISSING=()
 TARGET=""
 OUTDIR=""
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+start_time=$(date +%s)
+SCAN_TYPE=""
+os=""
 
 banner() {
     echo -e "${BLU}"
-    # detailed flour mill with unicode
+    # flour mill ascii
     cat << "EOF"
-                                    ╔═════╗
-                                   ║ MILL ║
-                                   ║ ┌─┐  ║
-                                  ╔╩═╡ ├══╩╗
-                                 ║  └─┘   ║
-                                 ║ ┌───┐  ║
-                             ╔═══╩═╡   ├══╩═══╗
-                            ║   ┌─┴───┴─┐    ║
-                            ║  │ FLOUR  │    ║
-                            ║  │  MILL  │    ║
-                        ╔═══╩══╧════════╧════╩═══╗
-                       ║ ▓▓  ▓▓  ░░░░░░░  ▓▓  ▓▓ ║
-                       ║ ▓▓  ▓▓  GRINDING ▓▓  ▓▓ ║
-                       ║ ▓▓  ▓▓  ░░░░░░░  ▓▓  ▓▓ ║
-      ╔════════════╗   ║═══════════════════════════║   ╔════════════╗
-     ║            ║   ║                           ║   ║            ║
-    ║   ╔═══╗     ║  ║  ╔══════════════════════╗  ║  ║     ╔═══╗   ║
-    ║  ║ ╱│╲ ║    ║  ║  ║                      ║  ║  ║    ║ ╱│╲ ║  ║
-    ║  ║ ─┼─ ║    ║  ║  ║   ┌──────────────┐   ║  ║  ║    ║ ─┼─ ║  ║
-    ║  ║ ╲│╱ ║    ║  ║  ║   │ GRAIN STONES │   ║  ║  ║    ║ ╲│╱ ║  ║
-    ║  ║  O  ║    ║  ║  ║   │   ↓↓↓↓↓↓↓    │   ║  ║  ║    ║  O  ║  ║
-    ║   ╚═══╝     ║  ║  ║   │    FLOUR     │   ║  ║  ║     ╚═══╝   ║
- ╔══╩════════════╩══║  ║  ║   └──────────────┘   ║  ║  ║══╩════════════╩══╗
- ║                  ║  ║  ╚══════════════════════╝  ║  ║                  ║
- ║ ░░░░░░░░░░░░░░░░ ║  ║                            ║  ║ ░░░░░░░░░░░░░░░░ ║
- ║ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ║  ║░░░░░░░░░░░░░░░░░░░░░░░░░░░║  ║ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ║
- ║ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ║  ║▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓║  ║ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ║
- ║ ░░░░░░░░░░░░░░░░ ║  ║░░░░░░░░░░░░░░░░░░░░░░░░░░░║  ║ ░░░░░░░░░░░░░░░░ ║
- ║≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈╚══╩════════════════════════════╩══╝≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈║
- ║≈≈≈ ≈≈≈  ≈≈≈  ≈≈≈  WATER WHEEL & CHANNEL  ≈≈≈  ≈≈≈  ≈≈≈  ≈≈≈  ≈≈≈ ≈≈≈║
- ╚═══════════════════════════════════════════════════════════════════════╝
- 
-                    ╔════════════════════════════════════════╗
-                    ║         Flour Mill v1.0                ║
-                    ║    scan → parse → exploit              ║
-                    ╚════════════════════════════════════════╝
+                                           ___
+                                        .-'   `-.
+                                       /         \
+                                      |  MILL    ;
+                                      |  .---.   |
+                                     _|_|   |_|__|_
+                                    |   .---.     |
+                                    |  |     |    |
+                                ____|__|     |____|____
+                               |  ___    FLOUR    ___ |
+                               | |   |   .----. |   ||
+                               | |   |  |      ||   ||
+                               | |___|  |  __  ||___||
+                           ____|________|_|  |_|______|___
+                          |  []  []  []  MILL  []  []  [] |
+                          |  []  []  []  ~~~~  []  []  [] |
+          .=========.     |  []  []  []        []  []  [] |     .=========.
+         //         \\    |______________________________|    //         \\
+        ||   .===.   ||  ||                              ||  ||   .===.   ||
+        ||  // | \\  ||  ||  ######################    ||  ||  // | \\  ||
+        ||  || | ||  ||  ||  #                    #    ||  ||  || | ||  ||
+        ||  || O ||  ||  ||  #   GRINDING STONES #    ||  ||  || O ||  ||
+        ||  ||   ||  ||  ||  #                    #    ||  ||  ||   ||  ||
+        ||   \\ | //  ||  ||  #  .-------------.  #    ||  ||   \\ | //  ||
+        ||    '==='   ||  ||  # | GRAIN→FLOUR |  #    ||  ||    '==='   ||
+     _  ||            ||  ||  # |_____________|  #    ||  ||            || _
+    |#| ||__________  ||  ||  #                  #    ||  ||  __________|| |#|
+    |#|              ||  ||  ######################    ||  ||              |#|
+    |#|##############||  ||                            ||  ||##############|#|
+    |#|              ||  ||############################||  ||              |#|
+    |#|~~~~~~~~~~~~~~||  ||                            ||  ||~~~~~~~~~~~~~~|#|
+    |#| ~~  ~~  ~~  ~~~  ~~   WATER WHEEL & FLOW  ~~  ~~~  ~~  ~~  ~~  ~~ |#|
+    |#|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####|
+    '######################################################################~~~'
+    
+                       ╔═══════════════════════════════╗
+                       ║     Flour Mill v1.0           ║
+                       ║   scan → parse → exploit      ║
+                       ╚═══════════════════════════════╝
 EOF
     echo -e "${NC}\n"
 }
 
-# check what tools we got
-check_tools() {
-    echo -e "${YEL}[*] checking for tools...${NC}\n"
+# check deps
+check_deps() {
+    echo -e "${YEL}[*] checking tools...${NC}\n"
     
     tools=(
-        "nmap"
-        "kerbrute"
-        "impacket-GetNPUsers"
-        "impacket-GetUserSPNs"
-        "enum4linux"
-        "smbclient"
-        "crackmapexec"
-        "hydra"
-        "medusa"
-        "nikto"
-        "gobuster"
-        "dirb"
-        "sqlmap"
-        "ssh-audit"
-        "msfconsole"
-        "responder"
-        "ldapsearch"
-        "dig"
-        "dnsenum"
+        "nmap:network scanning"
+        "kerbrute:kerberos enum"
+        "impacket-GetNPUsers:asreproast"
+        "impacket-GetUserSPNs:kerberoast"
+        "enum4linux:smb enum"
+        "smbclient:smb client"
+        "netexec:protocol testing"
+        "hydra:bruteforce"
+        "medusa:bruteforce"
+        "nikto:web scanner"
+        "gobuster:dir bruteforce"
+        "dirb:web enum"
+        "sqlmap:sqli"
+        "ssh-audit:ssh check"
+        "msfconsole:metasploit"
+        "responder:poisoner"
+        "ldapsearch:ldap"
+        "dig:dns"
+        "dnsenum:dns enum"
     )
     
     for t in "${tools[@]}"; do
-        if command -v "$t" &>/dev/null; then
-            AVAIL+=("$t")
-            echo -e "${GRN}[+]${NC} $t"
+        tool=$(echo "$t" | cut -d: -f1)
+        desc=$(echo "$t" | cut -d: -f2)
+        
+        if command -v "$tool" &>/dev/null; then
+            AVAIL+=("$tool")
+            echo -e "${GRN}[+]${NC} $tool"
         else
-            MISSING+=("$t")
-            echo -e "${RED}[-]${NC} $t"
+            MISSING+=("$tool")
+            echo -e "${RED}[-]${NC} $tool"
         fi
     done
     
-    echo -e "\n${GRN}found: ${#AVAIL[@]}${NC} | ${RED}missing: ${#MISSING[@]}${NC}\n"
+    echo -e "\n${GRN}got: ${#AVAIL[@]}${NC} | ${RED}missing: ${#MISSING[@]}${NC}\n"
     
-    if ! command -v nmap &>/dev/null; then
-        echo -e "${RED}[!] need nmap installed, exiting${NC}"
-        exit 1
+    [[ ! $(command -v nmap) ]] && { echo -e "${RED}need nmap${NC}"; exit 1; }
+    
+    # install missing stuff
+    if [ ${#MISSING[@]} -gt 0 ]; then
+        echo -e "${YEL}missing ${#MISSING[@]} tools${NC}"
+        read -p "install? (y/n): " inst
+        
+        [[ "$inst" =~ ^[Yy]$ ]] && install_missing
+        echo ""
     fi
+}
+
+# install missing
+install_missing() {
+    echo -e "${YEL}[*] installing...${NC}\n"
+    
+    # need pipx for some stuff
+    need_pipx=false
+    for t in "${MISSING[@]}"; do
+        case $t in
+            netexec|impacket-*|kerbrute) need_pipx=true ;;
+        esac
+    done
+    
+    if $need_pipx && ! command -v pipx &>/dev/null; then
+        echo -e "${YEL}[*] getting pipx...${NC}"
+        sudo apt update && sudo apt install -y pipx
+        pipx ensurepath
+    fi
+    
+    for t in "${MISSING[@]}"; do
+        echo -e "${BLU}[*] $t...${NC}"
+        
+        case $t in
+            netexec)
+                pipx install git+https://github.com/Pennyw0rth/NetExec 2>/dev/null
+                ;;
+            impacket-GetNPUsers|impacket-GetUserSPNs)
+                pipx install impacket 2>/dev/null
+                ;;
+            kerbrute)
+                wget -q https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 -O /tmp/kerbrute
+                chmod +x /tmp/kerbrute
+                sudo mv /tmp/kerbrute /usr/local/bin/kerbrute 2>/dev/null
+                ;;
+            *)
+                sudo apt install -y $t 2>/dev/null
+                ;;
+        esac
+        
+        if command -v "$t" &>/dev/null; then
+            echo -e "${GRN}[+] installed${NC}"
+            AVAIL+=("$t")
+        else
+            echo -e "${RED}[-] failed${NC}"
+        fi
+    done
+    
+    # rebuild missing list
+    MISSING=()
+    for t in "${tools[@]}"; do
+        tool=$(echo "$t" | cut -d: -f1)
+        command -v "$tool" &>/dev/null || MISSING+=("$tool")
+    done
+    
+    echo -e "\n${GRN}done: ${#AVAIL[@]} available${NC}"
+    [ ${#MISSING[@]} -gt 0 ] && echo -e "${RED}still missing: ${#MISSING[@]}${NC}\n"
 }
 
 has_tool() {
@@ -110,59 +182,63 @@ has_tool() {
     return 1
 }
 
+# get target and detect os
 get_target() {
-    if [[ -z "$TARGET" ]]; then
-        read -p "target ip/hostname: " TARGET
+    [[ -z "$TARGET" ]] && read -p "target: " TARGET
+    [[ -z "$TARGET" ]] && { echo -e "${RED}need target${NC}"; exit 1; }
+    
+    echo -e "${YEL}[*] checking...${NC}"
+    
+    kernel=$(uname -s)
+    [ $kernel = "Linux" ] && tw="W" || tw="t"
+    
+    ping_out=$(ping -c 1 -${tw} 1 "$TARGET" 2>/dev/null | grep ttl)
+    
+    if [[ -n "$ping_out" ]]; then
+        echo -e "${GRN}[+] up${NC}"
+        
+        ttl=$(echo "$ping_out" | grep -oP 'ttl=\K[0-9]+')
+        
+        # detect os
+        if [[ $ttl -ge 250 && $ttl -le 256 ]]; then
+            os="bsd/cisco"
+        elif [[ $ttl -ge 120 && $ttl -le 130 ]]; then
+            os="windows"
+        elif [[ $ttl -ge 60 && $ttl -le 70 ]]; then
+            os="linux"
+        else
+            os="unknown"
+        fi
+        
+        echo -e "${GRN}[+] probably $os (ttl=$ttl)${NC}"
+    else
+        echo -e "${YEL}no ping (filtered?)${NC}"
     fi
     
-    [[ -z "$TARGET" ]] && { echo -e "${RED}[!] need a target${NC}"; exit 1; }
-    echo -e "${GRN}[+] target: $TARGET${NC}\n"
+    echo ""
 }
 
+# setup scan
 setup_scan() {
     echo -e "${YEL}scan type:${NC}"
-    echo "1) quick (top 1k)"
-    echo "2) standard (all ports + versions)"
-    echo "3) full aggressive"
+    echo "1) quick"
+    echo "2) standard"
+    echo "3) full"
     echo "4) stealth"
-    echo "5) udp scan (top 1k udp ports)"
-    echo "6) udp full (all udp ports - slow)"
+    echo "5) udp"
+    echo "6) udp full"
     echo "7) custom"
-    read -p "> " choice
+    read -p "> " c
     
-    case $choice in
-        1) 
-            flags="-sS -F"
-            SCAN_TYPE="quick"
-            ;;
-        2) 
-            flags="-sS -sV -sC -p-"
-            SCAN_TYPE="standard"
-            ;;
-        3) 
-            flags="-A -p- -T4"
-            SCAN_TYPE="full"
-            ;;
-        4) 
-            flags="-sS -f -T2"
-            SCAN_TYPE="stealth"
-            ;;
-        5) 
-            flags="-sU -F"
-            SCAN_TYPE="udp"
-            ;;
-        6) 
-            flags="-sU -p-"
-            SCAN_TYPE="udp-full"
-            ;;
-        7) 
-            read -p "nmap flags: " flags
-            SCAN_TYPE="custom"
-            ;;
-        *) 
-            flags="-sS -sV -sC -p-"
-            SCAN_TYPE="standard"
-            ;;
+    case $c in
+        1) flags="-sS -F"; SCAN_TYPE="quick" ;;
+        2) flags="-sS -sV -sC -p-"; SCAN_TYPE="standard" ;;
+        3) flags="-A -p- -T4"; SCAN_TYPE="full" ;;
+        4) flags="-sS -f -T2"; SCAN_TYPE="stealth" ;;
+        5) flags="-sU -F"; SCAN_TYPE="udp" ;;
+        6) flags="-sU -p-"; SCAN_TYPE="udp-full" ;;
+        7) read -p "flags: " flags; SCAN_TYPE="custom" ;;
+        *) flags="-sS -sV -sC -p-"; SCAN_TYPE="standard" ;;
     esac
     
     echo -e "\n${YEL}verbosity:${NC}"
@@ -175,23 +251,34 @@ setup_scan() {
     [[ $v == 2 ]] && verb="-v"
     [[ $v == 3 ]] && verb="-vv"
     
-    read -p "output dir (default: ./scans): " custom
+    # where to save
+    echo -e "\n${YEL}save to:${NC}"
+    echo "1) ~/Documents/scans"
+    echo "2) ./scans"
+    echo "3) custom"
+    read -p "> " d
     
-    if [[ -z "$custom" ]]; then
-        OUTDIR="./scans/${TARGET}_${TIMESTAMP}"
-    else
-        OUTDIR="${custom}/${TARGET}_${TIMESTAMP}"
-    fi
+    case $d in
+        1) base="$HOME/Documents/scans" ;;
+        2) base="./scans" ;;
+        3) 
+            read -p "path: " base
+            [[ -z "$base" ]] && base="./scans"
+            ;;
+        *) base="$HOME/Documents/scans" ;;
+    esac
     
+    OUTDIR="${base}/${TARGET}_${TIMESTAMP}"
     mkdir -p "$OUTDIR/logs"
     
-    echo -e "\n${GRN}[+] configured${NC}"
-    echo -e "    flags: $flags $verb"
-    echo -e "    output: $OUTDIR\n"
+    echo -e "\n${GRN}[+] setup done${NC}"
+    echo -e "    $flags $verb"
+    echo -e "    $OUTDIR\n"
 }
 
+# run scan
 run_scan() {
-    echo -e "${YEL}[*] running nmap...${NC}\n"
+    echo -e "${YEL}[*] scanning...${NC}\n"
     
     nmapout="$OUTDIR/nmap.txt"
     nmapxml="$OUTDIR/nmap.xml"
@@ -199,65 +286,60 @@ run_scan() {
     
     cmd="sudo nmap $flags $verb -oN $nmapout -oX $nmapxml -oG $nmapgrep $TARGET"
     
-    echo -e "${BLU}[*] scan starting...${NC}"
-    echo -e "${BLU}    cmd: $cmd${NC}"
-    echo -e "${BLU}    this might take a while...${NC}\n"
+    echo -e "${BLU}[*] starting scan...${NC}"
+    echo -e "${BLU}    $cmd${NC}"
+    echo -e "${BLU}    might take a bit...${NC}\n"
     
     if eval "$cmd"; then
-        echo -e "\n${GRN}[+] scan completed${NC}\n"
+        echo -e "\n${GRN}[+] scan done${NC}\n"
     else
-        echo -e "\n${RED}[!] scan failed${NC}"
+        echo -e "\n${RED}[!] failed${NC}"
         exit 1
     fi
 }
 
-parse_scan() {
-    echo -e "${YEL}[*] parsing results...${NC}\n"
+# parse results
+parse_results() {
+    echo -e "${YEL}[*] parsing...${NC}\n"
     
-    [[ ! -f "$nmapout" ]] && { echo -e "${RED}[!] no scan output${NC}"; exit 1; }
+    [[ ! -f "$nmapout" ]] && { echo -e "${RED}no output${NC}"; exit 1; }
     
     grep -E "^[0-9]+/(tcp|udp).*open" "$nmapout" > "$OUTDIR/ports.txt" || true
     
     if [[ ! -s "$OUTDIR/ports.txt" ]]; then
-        echo -e "${RED}[!] no open ports${NC}"
+        echo -e "${RED}no open ports${NC}"
         exit 0
     fi
     
-    echo -e "${GRN}open ports:${NC}\n"
+    echo -e "${GRN}open:${NC}\n"
     cat "$OUTDIR/ports.txt"
     echo ""
 }
 
-# look for vulns
+# check vulns
 check_vulns() {
     local svc=$1
     local ver=$2
     
-    echo -e "\n${YEL}[*] checking vulns...${NC}"
+    echo -e "\n${YEL}[*] vuln check...${NC}"
     
-    # clean it up
     search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
     
-    # need internet
-    ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}[-] no internet${NC}"; return; }
+    ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}no net${NC}"; return; }
+    command -v curl &>/dev/null || { echo -e "${RED}need curl${NC}"; return; }
     
-    command -v curl &>/dev/null || { echo -e "${RED}[-] need curl${NC}"; return; }
-    
-    vuln_found=false
-    
-    # nvd check
-    echo -e "${BLU}[*] nvd: $search${NC}"
+    # nvd
+    echo -e "${BLU}[*] nvd...${NC}"
     cves=$(curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${search// /%20}" 2>/dev/null)
     
     if echo "$cves" | grep -q "CVE-"; then
-        echo -e "${RED}[!] found cves:${NC}"
+        echo -e "${RED}[!] cves:${NC}"
         echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
-            echo -e "    ${RED}→${NC} $c - https://nvd.nist.gov/vuln/detail/$c"
-            echo "[$svc:$ver] $c" >> "$OUTDIR/vulns_summary.txt"
+            echo -e "    ${RED}→${NC} $c"
+            echo "[$svc:$ver] $c" >> "$OUTDIR/vulns.txt"
         done
-        vuln_found=true
     else
-        echo -e "${GRN}[+] nothing in nvd${NC}"
+        echo -e "${GRN}[+] clean${NC}"
     fi
     
     # github
@@ -266,14 +348,13 @@ check_vulns() {
     repos=$(curl -s "https://api.github.com/search/repositories?q=${gh}&sort=stars&order=desc" 2>/dev/null)
     
     if echo "$repos" | grep -q '"full_name"'; then
-        echo -e "${YEL}[!] repos:${NC}"
+        echo -e "${YEL}[!] found:${NC}"
         echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
             echo -e "    ${YEL}→${NC} github.com/$r"
-            echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns_summary.txt"
+            echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns.txt"
         done
-        vuln_found=true
     else
-        echo -e "${GRN}[+] nothing on github${NC}"
+        echo -e "${GRN}[+] nothing${NC}"
     fi
     
     # searchsploit
@@ -284,17 +365,17 @@ check_vulns() {
         if [[ -n "$ex" ]]; then
             echo -e "${RED}[!] found:${NC}"
             echo "$ex" | head -5
-            echo "$ex" | head -5 >> "$OUTDIR/vulns_summary.txt"
-            vuln_found=true
+            echo "$ex" | head -5 >> "$OUTDIR/vulns.txt"
         else
-            echo -e "${GRN}[+] nothing in edb${NC}"
+            echo -e "${GRN}[+] clean${NC}"
         fi
     fi
     
     echo ""
 }
-# figure out what to run based on port/service
-get_suggestions() {
+
+# get tool suggestions
+get_tools() {
     p=$1
     svc=$2
     
@@ -309,31 +390,31 @@ get_suggestions() {
         139|445)
             [[ "$svc" =~ netbios|microsoft-ds|smb ]] && {
                 echo "enum4linux|smb enum|enum4linux -a $TARGET"
-                echo "smbclient|list shares|smbclient -L //$TARGET -N"
-                echo "netexec|smb attacks|netexec smb $TARGET -u '' -p ''"
+                echo "smbclient|shares|smbclient -L //$TARGET -N"
+                echo "netexec|smb test|netexec smb $TARGET -u '' -p ''"
             }
             ;;
         3389)
             [[ "$svc" =~ ms-wbt-server|rdp ]] && {
-                echo "hydra|rdp bruteforce|hydra -L users.txt -P pass.txt rdp://$TARGET"
+                echo "hydra|rdp brute|hydra -L users.txt -P pass.txt rdp://$TARGET"
             }
             ;;
         22)
             [[ "$svc" =~ ssh ]] && {
                 echo "ssh-audit|check config|ssh-audit $TARGET"
-                echo "hydra|ssh bruteforce|hydra -L users.txt -P pass.txt ssh://$TARGET"
+                echo "hydra|ssh brute|hydra -L users.txt -P pass.txt ssh://$TARGET"
             }
             ;;
         21)
             [[ "$svc" =~ ftp ]] && {
-                echo "hydra|ftp bruteforce|hydra -L users.txt -P pass.txt ftp://$TARGET"
+                echo "hydra|ftp brute|hydra -L users.txt -P pass.txt ftp://$TARGET"
             }
             ;;
         80|443|8080|8443)
             [[ "$svc" =~ http|https|ssl ]] && {
                 echo "nikto|web scan|nikto -h $TARGET:$p"
-                echo "gobuster|dir bruteforce|gobuster dir -u http://$TARGET:$p -w /usr/share/wordlists/dirb/common.txt"
-                echo "sqlmap|sqli test|sqlmap -u http://$TARGET:$p --batch --crawl=1"
+                echo "gobuster|dirs|gobuster dir -u http://$TARGET:$p -w /usr/share/wordlists/dirb/common.txt"
+                echo "sqlmap|sqli|sqlmap -u http://$TARGET:$p --batch --crawl=1"
             }
             ;;
         389|636|3268|3269)
@@ -348,40 +429,39 @@ get_suggestions() {
             }
             ;;
         *)
-            echo "msfconsole|search exploits|msfconsole -q -x 'search $svc; exit'"
+            echo "msfconsole|search|msfconsole -q -x 'search $svc; exit'"
             ;;
     esac
 }
 
+# run tools
 run_tools() {
     while read line; do
         p=$(echo "$line" | awk '{print $1}' | cut -d'/' -f1)
         svc=$(echo "$line" | awk '{print $3}')
         ver=$(echo "$line" | awk '{for(i=4;i<=NF;i++) printf "%s ", $i}' | xargs)
         
-        echo -e "${BLU}============================================${NC}"
+        echo -e "${BLU}========================================${NC}"
         echo -e "${YEL}port $p - $svc${NC}"
-        if [[ -n "$ver" ]]; then
-            echo -e "${YEL}version: $ver${NC}"
-        fi
-        echo -e "${BLU}============================================${NC}"
+        [[ -n "$ver" ]] && echo -e "${YEL}version: $ver${NC}"
+        echo -e "${BLU}========================================${NC}"
         
-        # check vulns if got version
+        # vuln check
         if [[ -n "$ver" ]]; then
-            read -p "check vulns? (y/n): " chk
-            [[ "$chk" =~ ^[Yy]$ ]] && check_vulns "$svc" "$ver"
+            read -p "check vulns? (y/n): " vc
+            [[ "$vc" =~ ^[Yy]$ ]] && check_vulns "$svc" "$ver"
         fi
         
-        sugg=$(get_suggestions "$p" "$svc")
+        sugg=$(get_tools "$p" "$svc")
         
-        [[ -z "$sugg" ]] && { echo -e "${YEL}no suggestions for this${NC}\n"; continue; }
+        [[ -z "$sugg" ]] && { echo -e "${YEL}nothing for this${NC}\n"; continue; }
         
-        while IFS='|' read -r tool desc example; do
+        while IFS='|' read -r tool desc ex; do
             [[ -z "$tool" ]] && continue
             
             echo -e "\n${GRN}tool:${NC} $tool"
             echo -e "${GRN}desc:${NC} $desc"
-            echo -e "${GRN}example:${NC} $example"
+            echo -e "${GRN}cmd:${NC} $ex"
             
             if ! has_tool "$tool"; then
                 echo -e "${RED}[-] not installed${NC}"
@@ -389,24 +469,23 @@ run_tools() {
             fi
             
             echo -e "${GRN}[+] available${NC}"
-            read -p "run? (y/n): " ans
+            read -p "run? (y/n): " r
             
-            if [[ "$ans" =~ ^[Yy]$ ]]; then
-                read -p "command (enter for example): " usercmd
+            if [[ "$r" =~ ^[Yy]$ ]]; then
+                read -p "custom cmd (or enter): " uc
+                [[ -z "$uc" ]] && uc="$ex"
                 
-                [[ -z "$usercmd" ]] && usercmd="$example"
-                
-                echo -e "\n${BLU}[*] starting $tool...${NC}"
-                echo -e "${BLU}    running: $usercmd${NC}\n"
+                echo -e "\n${BLU}[*] running $tool...${NC}"
+                echo -e "${BLU}    $uc${NC}\n"
                 
                 log="$OUTDIR/logs/${tool}_p${p}_${TIMESTAMP}.txt"
                 
-                eval "$usercmd" 2>&1 | tee "$log"
+                eval "$uc" 2>&1 | tee "$log"
                 
-                echo -e "\n${GRN}[+] $tool completed${NC}"
-                echo -e "${GRN}[+] saved to $log${NC}"
+                echo -e "\n${GRN}[+] $tool done${NC}"
+                echo -e "${GRN}    saved: $log${NC}"
             else
-                echo -e "${YEL}skipped${NC}"
+                echo -e "${YEL}skip${NC}"
             fi
         done <<< "$sugg"
         
@@ -415,56 +494,52 @@ run_tools() {
     done < "$OUTDIR/ports.txt"
 }
 
+# summary
 summary() {
-    echo -e "\n${BLU}========== SUMMARY ==========${NC}\n"
+    echo -e "\n${BLU}===== SUMMARY =====${NC}\n"
     
-    # calculate time
-    end_time=$(date +%s)
-    elapsed=$((end_time - start_time))
+    end=$(date +%s)
+    elapsed=$((end - start_time))
     
     if [ $elapsed -gt 3600 ]; then
-        hours=$((elapsed / 3600))
-        mins=$(((elapsed % 3600) / 60))
-        secs=$(((elapsed % 3600) % 60))
-        time_str="${hours}h ${mins}m ${secs}s"
+        h=$((elapsed / 3600))
+        m=$(((elapsed % 3600) / 60))
+        s=$(((elapsed % 3600) % 60))
+        time="${h}h ${m}m ${s}s"
     elif [ $elapsed -gt 60 ]; then
-        mins=$((elapsed / 60))
-        secs=$((elapsed % 60))
-        time_str="${mins}m ${secs}s"
+        m=$((elapsed / 60))
+        s=$((elapsed % 60))
+        time="${m}m ${s}s"
     else
-        time_str="${elapsed}s"
+        time="${elapsed}s"
     fi
     
     echo -e "${YEL}target:${NC} $TARGET"
-    echo -e "${YEL}os detected:${NC} ${os:-unknown}"
-    echo -e "${YEL}scan type:${NC} $SCAN_TYPE"
-    echo -e "${YEL}time:${NC} $time_str"
-    echo -e "${YEL}timestamp:${NC} $TIMESTAMP\n"
+    echo -e "${YEL}os:${NC} ${os:-unknown}"
+    echo -e "${YEL}type:${NC} $SCAN_TYPE"
+    echo -e "${YEL}time:${NC} $time\n"
     
     echo -e "${GRN}files:${NC}"
-    echo -e "  nmap: $nmapout"
-    echo -e "  xml: $nmapxml"
-    echo -e "  ports: $OUTDIR/ports.txt"
+    echo -e "  $nmapout"
+    echo -e "  $nmapxml"
+    echo -e "  $OUTDIR/ports.txt"
     
-    # count logs
     logs=$(ls -1 "$OUTDIR/logs" 2>/dev/null | wc -l)
-    echo -e "  tool logs: $logs in $OUTDIR/logs/\n"
+    echo -e "  logs: $logs files\n"
     
-    # count open ports
     if [ -f "$OUTDIR/ports.txt" ]; then
-        port_count=$(wc -l < "$OUTDIR/ports.txt")
-        echo -e "${GRN}found ${port_count} open ports${NC}\n"
+        pc=$(wc -l < "$OUTDIR/ports.txt")
+        echo -e "${GRN}ports: $pc open${NC}\n"
     fi
     
-    # show vulns found if checked
-    if [ -f "$OUTDIR/vulns_summary.txt" ]; then
-        echo -e "${RED}vulnerabilities found:${NC}"
-        cat "$OUTDIR/vulns_summary.txt"
+    if [ -f "$OUTDIR/vulns.txt" ]; then
+        echo -e "${RED}vulns found:${NC}"
+        cat "$OUTDIR/vulns.txt"
         echo ""
     fi
     
     if [[ ${#MISSING[@]} -gt 0 ]]; then
-        echo -e "${YEL}missing tools:${NC}"
+        echo -e "${YEL}missing:${NC}"
         printf '  %s\n' "${MISSING[@]}"
         echo ""
     fi
@@ -474,11 +549,11 @@ summary() {
 
 main() {
     banner
-    check_tools
+    check_deps
     get_target
     setup_scan
     run_scan
-    parse_scan
+    parse_results
     run_tools
     summary
 }
