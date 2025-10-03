@@ -397,8 +397,8 @@ check_vulns() {
     local ver=$2
     
     echo -e "\n${BLU}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLU}  ║${NC}${YEL}        VULNERABILITY CHECK       ${NC}${BLU}║${NC}"
-    echo -e "${BLU}  ╚════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${BLU}║${NC}${YEL}              VULNERABILITY CHECK                       ${NC}${BLU}║${NC}"
+    echo -e "${BLU}╚════════════════════════════════════════════════════════╝${NC}"
     
     search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
     
@@ -414,8 +414,8 @@ check_vulns() {
     if echo "$cves" | grep -q "CVE-"; then
         found_vulns=true
         echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${RED}  ║     CVEs FOUND - POTENTIAL VULNERABILITIES             ║${NC}"
-        echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}\n"
+        echo -e "${RED}║        CVEs FOUND - POTENTIAL VULNERABILITIES          ║${NC}"
+        echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}\n"
         echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
             echo -e "${RED}  ▶ $c${NC}"
             echo -e "    https://nvd.nist.gov/vuln/detail/$c"
@@ -433,8 +433,8 @@ check_vulns() {
     if echo "$repos" | grep -q '"full_name"'; then
         found_vulns=true
         echo -e "\n${YEL}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${YEL}  ║             EXPLOITS AVAILABLE ON GITHUB               ║${NC}"
-        echo -e "${YEL}  ╚════════════════════════════════════════════════════════╝${NC}\n"
+        echo -e "${YEL}║            EXPLOITS AVAILABLE ON GITHUB                ║${NC}"
+        echo -e "${YEL}╚════════════════════════════════════════════════════════╝${NC}\n"
         echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
             echo -e "${YEL}  ▶ https://github.com/$r${NC}"
             echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns.txt"
@@ -451,8 +451,8 @@ check_vulns() {
         if [[ -n "$ex" ]]; then
             found_vulns=true
             echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${RED}  ║                EXPLOITS IN EXPLOIT-DB                  ║${NC}"
-            echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}\n"
+            echo -e "${RED}║             EXPLOITS IN EXPLOIT-DB                     ║${NC}"
+            echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}\n"
             echo "$ex" | head -5
             echo "$ex" | head -5 >> "$OUTDIR/vulns.txt"
         else
@@ -463,17 +463,17 @@ check_vulns() {
     # summary box if vulns found
     if $found_vulns; then
         echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${RED}  ║                                                        ║${NC}"
-        echo -e "${RED}  ║                     ACTION REQUIRED                    ║${NC}"
-        echo -e "${RED}  ║         Vulnerabilities detected for $svc $ver         ║${NC}"
-        echo -e "${RED}  ║             Check vulns.txt for full details           ║${NC}"
-        echo -e "${RED}  ║              Review suggested exploits above           ║${NC}"
-        echo -e "${RED}  ║                                                        ║${NC}"
-        echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${RED}║                                                        ║${NC}"
+        echo -e "${RED}║                    ACTION REQUIRED                     ║${NC}"
+        echo -e "${RED}║          Vulnerabilities detected for $svc $ver        ║${NC}"
+        echo -e "${RED}║              Check vulns.txt for full details          ║${NC}"
+        echo -e "${RED}║               Review suggested exploits above          ║${NC}"
+        echo -e "${RED}║                                                        ║${NC}"
+        echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
     else
         echo -e "\n${GRN}╔════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${GRN}  ║           No obvious vulnerabilities found             ║${NC}"
-        echo -e "${GRN}  ╚════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${GRN}║           No obvious vulnerabilities found             ║${NC}"
+        echo -e "${GRN}╚════════════════════════════════════════════════════════╝${NC}"
     fi
     
     echo ""
