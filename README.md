@@ -39,7 +39,7 @@ script will ask to install any missing tools automatically
 
 **basic:**
 ```bash
-git clone https://github.com/yourusername/flour_mill.git
+git clone https://github.com/MalwareMusashi/flour-mill
 cd flour_mill
 chmod +x flour_mill.sh
 ./flour_mill.sh
