@@ -5,15 +5,15 @@ automated pentesting recon tool - scans ports, detects os, checks vulns, suggest
 ## what it does
 
 1. checks what tools you got installed
-2. **auto-installs missing tools** (asks first)
-3. pings target and **detects OS from TTL**
+2. auto-installs missing tools (asks first)
+3. pings target and detects OS from TTL
 4. runs nmap (tcp or udp, your choice)
 5. parses open ports/services
-6. **checks CVEs, github, exploit-db** for each service
+6. checks CVEs, github, exploit-db for each service
 7. suggests tools for each port
 8. runs them interactively
 9. logs everything with timestamps
-10. **shows summary with timing and vulns found**
+10. shows summary with timing and vulns found
 
 ## requirements
 
@@ -21,6 +21,7 @@ automated pentesting recon tool - scans ports, detects os, checks vulns, suggest
 - nmap
 - sudo
 - curl (for vuln checks)
+- git (for updates)
 - internet (for auto-install and vuln lookups)
 
 **optional (script offers to install these):**
@@ -40,16 +41,15 @@ script will ask to install any missing tools automatically
 
 **basic:**
 ```bash
+git clone https://github.com/yourusername/flour_mill.git
+cd flour_mill
 chmod +x flour_mill.sh
 ./flour_mill.sh
 ```
 
 **install globally (run from anywhere):**
 ```bash
-# clone
-git clone https://github.com/MalwareMusashi/flour-mill
-cd flour_mill
-
+# from the repo directory
 chmod +x flour_mill.sh
 
 # copy to bin
@@ -59,7 +59,7 @@ sudo cp flour_mill.sh /usr/local/bin/flour_mill
 flour_mill
 ```
 
-**or symlink:**
+**or symlink (recommended - easier to update):**
 ```bash
 sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
 ```
@@ -69,16 +69,49 @@ sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
 sudo rm /usr/local/bin/flour_mill
 ```
 
-## usage
+## updating
 
+**if installed via git:**
 ```bash
-./flour_mill.sh
+flour_mill --update
 ```
 
-or with target preset:
+or
 
 ```bash
-TARGET=192.168.1.100 ./flour_mill.sh
+flour_mill -u
+```
+
+**manual update (if not using git):**
+```bash
+cd ~/flour_mill
+git pull
+
+# if symlinked, you're done
+# if copied to /usr/local/bin:
+sudo cp flour_mill.sh /usr/local/bin/flour_mill
+```
+
+**check version:**
+```bash
+flour_mill --version
+```
+
+## usage
+
+**three ways to set target:**
+
+```bash
+# 1. command line argument
+flour_mill 192.168.1.100
+
+# 2. exported variable
+export TARGET=192.168.1.100
+flour_mill
+
+# 3. interactive prompt
+flour_mill
+target: _
 ```
 
 ### scan types
@@ -102,27 +135,26 @@ TARGET=192.168.1.100 ./flour_mill.sh
 when script runs, if tools are missing:
 
 ```
-[*] checking for tools...
+[*] checking tools...
 [+] nmap
 [-] netexec
 [-] kerbrute
 ...
 
-found: 8 | missing: 5
+got: 8 | missing: 5
 
-[!] found 5 missing tools
-install missing tools? (y/n): y
+missing 5 tools
+install? (y/n): y
 
-[*] installing tools...
-[*] installing pipx first...
-[*] installing netexec...
-[+] netexec installed
-[*] installing kerbrute...
-[+] kerbrute installed
+[*] installing...
+[*] getting pipx...
+[*] netexec...
+[+] installed
+[*] kerbrute...
+[+] installed
 ...
 
-installed successfully
-available: 13 | still missing: 0
+done: 13 available
 ```
 
 handles:
@@ -135,15 +167,15 @@ handles:
 script pings target and detects os from TTL:
 
 ```
-[*] checking target...
-[+] target is up
-[+] likely running: Windows (ttl=128)
+[*] checking...
+[+] up
+[+] probably windows (ttl=128)
 ```
 
 ttl ranges:
-- 250-256: OpenBSD/Cisco/Oracle
-- 120-130: Windows
-- 60-70: Linux
+- 250-256: bsd/cisco/oracle
+- 120-130: windows
+- 60-70: linux
 
 ### vuln checking
 
@@ -155,18 +187,18 @@ version: Samba 3.0.20
 
 check vulns? (y/n): y
 
-[*] checking vulns...
-[*] nvd: Samba 3.0.20
-[!] found cves:
-    → CVE-2007-2447 - https://nvd.nist.gov/vuln/detail/CVE-2007-2447
+[*] vuln check...
+[*] nvd...
+[!] cves:
+    → CVE-2007-2447
 
 [*] github...
-[!] repos:
+[!] found:
     → github.com/amriunix/CVE-2007-2447
 
 [*] exploit-db...
 [!] found:
-Samba 3.0.20 < 3.0.25rc3 - 'Username' map script' Command Execution
+Samba 3.0.20 < 3.0.25rc3 - Command Execution
 ```
 
 checks:
@@ -174,40 +206,39 @@ checks:
 - github repos (sorted by stars)
 - exploit-db (via searchsploit)
 
-all vulns saved to `vulns_summary.txt` in output dir
+all vulns saved to `vulns.txt` in output dir
 
 ### example run
 
 ```
-$ ./flour_mill.sh
+$ flour_mill 192.168.1.100
 
 [flour mill ascii art]
 
-[*] checking for tools...
+[*] checking tools...
 [+] nmap
 [-] netexec
 ...
 
-[!] found 3 missing tools
-install missing tools? (y/n): y
+missing 3 tools
+install? (y/n): y
 
-[*] installing tools...
+[*] installing...
 [+] netexec installed
 ...
 
-[*] checking target...
-[+] target is up
-[+] likely running: Windows (ttl=128)
-
-target ip/hostname: 10.10.10.3
+[+] using exported target: 192.168.1.100
+[*] checking...
+[+] up
+[+] probably windows (ttl=128)
 
 scan type:
-1) quick (top 1k)
-2) standard (all ports + versions)
-3) full aggressive
+1) quick
+2) standard
+3) full
 4) stealth
-5) udp scan (top 1k udp ports)
-6) udp full (all udp ports - slow)
+5) udp
+6) udp full
 7) custom
 > 2
 
@@ -217,61 +248,67 @@ verbosity:
 3) -vv
 > 1
 
-save scans to:
-1) Documents folder
-2) current directory
-3) custom path
+save to:
+1) ~/Documents/scans
+2) ./scans
+3) custom
 > 1
 
-[+] configured
-    flags: -sS -sV -sC -p-
-    output: /home/user/Documents/scans/10.10.10.3_20241002_153022
+[+] setup done
+    -sS -sV -sC -p-
+    /home/user/Documents/scans/192.168.1.100_20241002_153022
 
-[*] running nmap...
-...
+[*] scanning...
 
-open ports:
+[*] starting scan...
+    sudo nmap -sS -sV -sC -p- 192.168.1.100
+    might take a bit...
+
+[+] scan done
+
+[*] parsing...
+
+open:
 139/tcp  open  netbios-ssn  Samba 3.0.20
 445/tcp  open  smb          Samba 3.0.20
 
-============================================
+========================================
 port 445 - smb
 version: Samba 3.0.20
-============================================
+========================================
 
 check vulns? (y/n): y
 
-[*] checking vulns...
-[!] found cves:
+[*] vuln check...
+[!] cves:
     → CVE-2007-2447
 
-[!] repos:
+[!] found:
     → github.com/amriunix/CVE-2007-2447
 
 tool: netexec
-desc: smb attacks
-example: netexec smb 10.10.10.3 -u '' -p ''
+desc: smb test
+cmd: netexec smb 192.168.1.100 -u '' -p ''
 [+] available
 run? (y/n): y
 ...
 
-========== SUMMARY ==========
+===== SUMMARY =====
 
-target: 10.10.10.3
-os detected: Windows
-scan type: standard
+target: 192.168.1.100
+os: windows
+type: standard
 time: 5m 23s
-timestamp: 20241002_153022
 
 files:
-  nmap: /home/user/Documents/scans/10.10.10.3_20241002_153022/nmap.txt
-  xml: /home/user/Documents/scans/10.10.10.3_20241002_153022/nmap.xml
-  ports: /home/user/Documents/scans/10.10.10.3_20241002_153022/ports.txt
-  tool logs: 3 in /home/user/Documents/scans/10.10.10.3_20241002_153022/logs/
+  /home/user/Documents/scans/192.168.1.100_20241002_153022/nmap.txt
+  /home/user/Documents/scans/192.168.1.100_20241002_153022/nmap.xml
+  /home/user/Documents/scans/192.168.1.100_20241002_153022/ports.txt
+  logs: 3 files
 
-found 2 open ports
+ports: 2 open
 
-vulnerabilities found:
+vulns found:
 [smb:Samba 3.0.20] CVE-2007-2447
 [smb:Samba 3.0.20] github.com/amriunix/CVE-2007-2447
 
@@ -281,12 +318,12 @@ done
 ## output structure
 
 ```
-~/Documents/scans/10.10.10.3_20241002_153022/
+~/Documents/scans/192.168.1.100_20241002_153022/
 ├── nmap.txt
 ├── nmap.xml
 ├── nmap.gnmap
 ├── ports.txt
-├── vulns_summary.txt      # all found vulns
+├── vulns.txt           # all found vulns
 └── logs/
     ├── netexec_p445_20241002_153022.txt
     ├── enum4linux_p445_20241002_153022.txt
@@ -314,10 +351,11 @@ done
 - script auto-installs tools but you can skip
 - all output timestamped and organized
 - vulns saved to summary file
+- symlink install = easier updates
 
 ## common issues
 
-**"need nmap installed"**
+**"need nmap"**
 ```bash
 sudo apt install nmap
 ```
@@ -327,7 +365,7 @@ sudo apt install nmap
 - ping target manually first
 - try stealth scan if filtered
 
-**"no internet" during vuln checks**
+**"no net" during vuln checks**
 - need curl: `sudo apt install curl`
 - check network connection
 - vuln checks will be skipped
@@ -345,10 +383,26 @@ chmod +x kerbrute_linux_amd64
 sudo mv kerbrute_linux_amd64 /usr/local/bin/kerbrute
 ```
 
+**"not a git repo, can't update"**
+- reinstall via git clone
+- or manually pull changes
+
 **can't find output**
 - check path in summary
 - default: `~/Documents/scans/`
 - use `find ~ -name "nmap.txt"` to locate
+
+## flags
+
+```bash
+flour_mill --update        # update from git
+flour_mill -u              # same
+
+flour_mill --version       # show version
+flour_mill -v              # same
+
+flour_mill 192.168.1.100   # run with target
+```
 
 ## features
 
@@ -359,18 +413,31 @@ sudo mv kerbrute_linux_amd64 /usr/local/bin/kerbrute
 - **timing stats** - shows how long everything took
 - **organized output** - timestamped dirs and files
 - **vuln aggregation** - all findings in one summary file
+- **self-update** - update script with one command
+- **multiple target methods** - cli arg, export, or prompt
 
 ## changelog
 
-- added auto-install for all tools (not just netexec)
-- added os detection from ttl values
-- added vuln summary file
-- added timing to summary output
-- added port counting in summary
-- improved install process (handles pipx, apt, github)
-- supports udp scanning
+**v1.0**
+- initial release
+- auto-install for all tools
+- os detection from ttl values
+- vuln checking (nvd, github, exploit-db)
+- vuln summary file
+- timing in summary output
+- port counting
+- udp scanning support
 - netexec replaces crackmapexec
+- self-update functionality
+- command-line target argument
+- improved target handling (export/arg/prompt)
+- version flag
 
 ---
 
 built for ctfs and quick pentests. automates the boring enum stuff so you can focus on exploitation.
+
+**update regularly:**
+```bash
+flour_mill --update
+```
