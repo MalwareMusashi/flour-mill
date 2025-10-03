@@ -184,8 +184,13 @@ has_tool() {
 
 # get target and detect os
 get_target() {
-    [[ -z "$TARGET" ]] && read -p "target: " TARGET
-    [[ -z "$TARGET" ]] && { echo -e "${RED}need target${NC}"; exit 1; }
+    # check if TARGET is already set
+    if [[ -n "$TARGET" ]]; then
+        echo -e "${GRN}[+] using exported target: $TARGET${NC}"
+    else
+        read -p "target: " TARGET
+        [[ -z "$TARGET" ]] && { echo -e "${RED}need target${NC}"; exit 1; }
+    fi
     
     echo -e "${YEL}[*] checking...${NC}"
     
