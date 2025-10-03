@@ -111,6 +111,8 @@ check_deps() {
         "nikto:web scanner"
         "gobuster:dir bruteforce"
         "dirb:web enum"
+        "ffuf:web fuzzer"
+        "dirsearch:web scanner"
         "sqlmap:sqli"
         "ssh-audit:ssh check"
         "msfconsole:metasploit"
@@ -165,6 +167,21 @@ install_missing() {
         pipx ensurepath
     fi
     
+    # check if go needed
+    need_go=false
+    for t in "${MISSING[@]}"; do
+        [[ "$t" == "ffuf" ]] && need_go=true
+    done
+    
+    if $need_go && ! command -v go &>/dev/null; then
+        echo -e "${YEL}go not found, needed for ffuf${NC}"
+        read -p "install go? (y/n): " inst_go
+        if [[ "$inst_go" =~ ^[Yy]$ ]]; then
+            echo -e "${YEL}[*] installing go...${NC}"
+            sudo apt update && sudo apt install -y golang-go
+        fi
+    fi
+    
     for t in "${MISSING[@]}"; do
         echo -e "${BLU}[*] $t...${NC}"
         
@@ -179,6 +196,26 @@ install_missing() {
                 wget -q https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 -O /tmp/kerbrute
                 chmod +x /tmp/kerbrute
                 sudo mv /tmp/kerbrute /usr/local/bin/kerbrute 2>/dev/null
+                ;;
+            ffuf)
+                # check if go is installed
+                if command -v go &>/dev/null; then
+                    go install github.com/ffuf/ffuf@latest 2>/dev/null
+                    # move from ~/go/bin to /usr/local/bin if exists
+                    [[ -f ~/go/bin/ffuf ]] && sudo cp ~/go/bin/ffuf /usr/local/bin/ 2>/dev/null
+                else
+                    # try apt first
+                    sudo apt install -y ffuf 2>/dev/null
+                fi
+                ;;
+            dirsearch)
+                sudo apt install -y dirsearch 2>/dev/null || {
+                    # fallback to github
+                    git clone https://github.com/maurosoria/dirsearch.git /tmp/dirsearch 2>/dev/null
+                    sudo cp /tmp/dirsearch/dirsearch.py /usr/local/bin/dirsearch 2>/dev/null
+                    sudo chmod +x /usr/local/bin/dirsearch 2>/dev/null
+                    rm -rf /tmp/dirsearch
+                }
                 ;;
             *)
                 sudo apt install -y $t 2>/dev/null
@@ -359,54 +396,84 @@ check_vulns() {
     local svc=$1
     local ver=$2
     
-    echo -e "\n${YEL}[*] vuln check...${NC}"
+    echo -e "\n${BLU}╔════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLU}  ║${NC}${YEL}        VULNERABILITY CHECK       ${NC}${BLU}║${NC}"
+    echo -e "${BLU}  ╚════════════════════════════════════════════════════════╝${NC}"
     
     search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
     
     ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}no net${NC}"; return; }
     command -v curl &>/dev/null || { echo -e "${RED}need curl${NC}"; return; }
     
+    found_vulns=false
+    
     # nvd
-    echo -e "${BLU}[*] nvd...${NC}"
+    echo -e "\n${YEL}[*] searching NVD for: $search${NC}"
     cves=$(curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${search// /%20}" 2>/dev/null)
     
     if echo "$cves" | grep -q "CVE-"; then
-        echo -e "${RED}[!] cves:${NC}"
+        found_vulns=true
+        echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}  ║     CVEs FOUND - POTENTIAL VULNERABILITIES             ║${NC}"
+        echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}\n"
         echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
-            echo -e "    ${RED}→${NC} $c"
+            echo -e "${RED}  ▶ $c${NC}"
+            echo -e "    https://nvd.nist.gov/vuln/detail/$c"
             echo "[$svc:$ver] $c" >> "$OUTDIR/vulns.txt"
         done
     else
-        echo -e "${GRN}[+] clean${NC}"
+        echo -e "${GRN}  ✓ no known CVEs${NC}"
     fi
     
     # github
-    echo -e "\n${BLU}[*] github...${NC}"
+    echo -e "\n${YEL}[*] searching GitHub for exploits...${NC}"
     gh="${search// /+}+exploit"
     repos=$(curl -s "https://api.github.com/search/repositories?q=${gh}&sort=stars&order=desc" 2>/dev/null)
     
     if echo "$repos" | grep -q '"full_name"'; then
-        echo -e "${YEL}[!] found:${NC}"
+        found_vulns=true
+        echo -e "\n${YEL}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YEL}  ║             EXPLOITS AVAILABLE ON GITHUB               ║${NC}"
+        echo -e "${YEL}  ╚════════════════════════════════════════════════════════╝${NC}\n"
         echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
-            echo -e "    ${YEL}→${NC} github.com/$r"
+            echo -e "${YEL}  ▶ https://github.com/$r${NC}"
             echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns.txt"
         done
     else
-        echo -e "${GRN}[+] nothing${NC}"
+        echo -e "${GRN}  ✓ no public exploits found${NC}"
     fi
     
     # searchsploit
     if command -v searchsploit &>/dev/null; then
-        echo -e "\n${BLU}[*] exploit-db...${NC}"
+        echo -e "\n${YEL}[*] searching Exploit-DB...${NC}"
         ex=$(searchsploit "$search" 2>/dev/null | grep -v "Exploits: No Results")
         
         if [[ -n "$ex" ]]; then
-            echo -e "${RED}[!] found:${NC}"
+            found_vulns=true
+            echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}  ║                EXPLOITS IN EXPLOIT-DB                  ║${NC}"
+            echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}\n"
             echo "$ex" | head -5
             echo "$ex" | head -5 >> "$OUTDIR/vulns.txt"
         else
-            echo -e "${GRN}[+] clean${NC}"
+            echo -e "${GRN}  ✓ no exploits in database${NC}"
         fi
+    fi
+    
+    # summary box if vulns found
+    if $found_vulns; then
+        echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}  ║                                                        ║${NC}"
+        echo -e "${RED}  ║                     ACTION REQUIRED                    ║${NC}"
+        echo -e "${RED}  ║         Vulnerabilities detected for $svc $ver         ║${NC}"
+        echo -e "${RED}  ║             Check vulns.txt for full details           ║${NC}"
+        echo -e "${RED}  ║              Review suggested exploits above           ║${NC}"
+        echo -e "${RED}  ║                                                        ║${NC}"
+        echo -e "${RED}  ╚════════════════════════════════════════════════════════╝${NC}"
+    else
+        echo -e "\n${GRN}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GRN}  ║           No obvious vulnerabilities found             ║${NC}"
+        echo -e "${GRN}  ╚════════════════════════════════════════════════════════╝${NC}"
     fi
     
     echo ""
@@ -452,6 +519,8 @@ get_tools() {
             [[ "$svc" =~ http|https|ssl ]] && {
                 echo "nikto|web scan|nikto -h $TARGET:$p"
                 echo "gobuster|dirs|gobuster dir -u http://$TARGET:$p -w /usr/share/wordlists/dirb/common.txt"
+                echo "ffuf|fuzzing|ffuf -w /usr/share/wordlists/dirb/common.txt -u http://$TARGET:$p/FUZZ"
+                echo "dirsearch|web scan|dirsearch -u http://$TARGET:$p"
                 echo "sqlmap|sqli|sqlmap -u http://$TARGET:$p --batch --crawl=1"
             }
             ;;
