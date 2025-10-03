@@ -113,6 +113,7 @@ check_deps() {
         "dirb:web enum"
         "ffuf:web fuzzer"
         "dirsearch:web scanner"
+        "nuclei:vuln scanner"
         "sqlmap:sqli"
         "ssh-audit:ssh check"
         "msfconsole:metasploit"
@@ -170,7 +171,7 @@ install_missing() {
     # check if go needed
     need_go=false
     for t in "${MISSING[@]}"; do
-        [[ "$t" == "ffuf" ]] && need_go=true
+        [[ "$t" == "ffuf" || "$t" == "nuclei" ]] && need_go=true
     done
     
     if $need_go && ! command -v go &>/dev/null; then
@@ -206,6 +207,16 @@ install_missing() {
                 else
                     # try apt first
                     sudo apt install -y ffuf 2>/dev/null
+                fi
+                ;;
+            nuclei)
+                # install via go
+                if command -v go &>/dev/null; then
+                    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest 2>/dev/null
+                    [[ -f ~/go/bin/nuclei ]] && sudo cp ~/go/bin/nuclei /usr/local/bin/ 2>/dev/null
+                else
+                    # try apt
+                    sudo apt install -y nuclei 2>/dev/null
                 fi
                 ;;
             dirsearch)
@@ -343,7 +354,16 @@ setup_scan() {
         *) base="$HOME/Documents/scans" ;;
     esac
     
-    OUTDIR="${base}/${TARGET}_${TIMESTAMP}"
+    # ask for scan name
+    echo -e "\n${YEL}scan name (optional):${NC}"
+    read -p "name (or enter for default): " scan_name
+    
+    if [[ -n "$scan_name" ]]; then
+        OUTDIR="${base}/${scan_name}_${TARGET}_${TIMESTAMP}"
+    else
+        OUTDIR="${base}/${TARGET}_${TIMESTAMP}"
+    fi
+    
     mkdir -p "$OUTDIR/logs"
     
     echo -e "\n${GRN}[+] setup done${NC}"
@@ -521,6 +541,7 @@ get_tools() {
                 echo "gobuster|dirs|gobuster dir -u http://$TARGET:$p -w /usr/share/wordlists/dirb/common.txt"
                 echo "ffuf|fuzzing|ffuf -w /usr/share/wordlists/dirb/common.txt -u http://$TARGET:$p/FUZZ"
                 echo "dirsearch|web scan|dirsearch -u http://$TARGET:$p"
+                echo "nuclei|vuln scan|nuclei -u http://$TARGET:$p -t ~/nuclei-templates/"
                 echo "sqlmap|sqli|sqlmap -u http://$TARGET:$p --batch --crawl=1"
             }
             ;;
