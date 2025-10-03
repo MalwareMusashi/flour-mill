@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
-VERSION="1.5"
+VERSION="2.0"
 
 # check for update flag
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
@@ -87,7 +87,7 @@ banner() {
     ||      ||
 
                         ╔═══════════════════════════════╗
-                        ║     Flour Mill v1.5           ║
+                        ║     Flour Mill v2.0           ║
                         ║   scan → parse → exploit      ║
                         ╚═══════════════════════════════╝
 EOF
