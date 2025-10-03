@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# flour mill Version 1.5
+# flour mill
 # automated recon - scans, checks vulns, runs tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
-VERSION="1.5"
+VERSION="1.0"
 
 # check for update flag
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
@@ -270,9 +270,11 @@ setup_scan() {
     echo "2) standard"
     echo "3) full"
     echo "4) stealth"
-    echo "5) udp"
-    echo "6) udp full"
-    echo "7) custom"
+    echo "5) quick stealth"
+    echo "6) quick aggressive"
+    echo "7) udp"
+    echo "8) udp full"
+    echo "9) custom"
     read -p "> " c
     
     case $c in
@@ -280,9 +282,11 @@ setup_scan() {
         2) flags="-sS -sV -sC -p-"; SCAN_TYPE="standard" ;;
         3) flags="-A -p- -T4"; SCAN_TYPE="full" ;;
         4) flags="-sS -f -T2"; SCAN_TYPE="stealth" ;;
-        5) flags="-sU -F"; SCAN_TYPE="udp" ;;
-        6) flags="-sU -p-"; SCAN_TYPE="udp-full" ;;
-        7) read -p "flags: " flags; SCAN_TYPE="custom" ;;
+        5) flags="-sS -sV -F -T2 -Pn"; SCAN_TYPE="quick-stealth" ;;
+        6) flags="-sS -sV -sC -F -T4 --min-rate=1000"; SCAN_TYPE="quick-aggressive" ;;
+        7) flags="-sU -F"; SCAN_TYPE="udp" ;;
+        8) flags="-sU -p-"; SCAN_TYPE="udp-full" ;;
+        9) read -p "flags: " flags; SCAN_TYPE="custom" ;;
         *) flags="-sS -sV -sC -p-"; SCAN_TYPE="standard" ;;
     esac
     
