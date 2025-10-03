@@ -47,7 +47,7 @@ chmod +x flour_mill.sh
 **install globally (run from anywhere):**
 ```bash
 # clone
-git clone https://github.com/yourusername/flour_mill.git
+git clone https://github.com/MalwareMusashi/flour-mill
 cd flour_mill
 
 chmod +x flour_mill.sh
