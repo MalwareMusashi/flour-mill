@@ -2,6 +2,7 @@
 
 # flour mill
 # automated recon - scans, checks vulns, runs tools
+# usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
 RED='\033[0;31m'
 GRN='\033[0;32m'
@@ -17,6 +18,45 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
+VERSION="1.0"
+
+# check for update flag
+if [[ "$1" == "--update" || "$1" == "-u" ]]; then
+    echo -e "${YEL}[*] checking for updates...${NC}"
+    
+    script_dir=$(dirname $(readlink -f "$0"))
+    
+    if [[ -d "$script_dir/.git" ]]; then
+        cd "$script_dir"
+        git fetch origin >/dev/null 2>&1
+        
+        local_hash=$(git rev-parse HEAD)
+        remote_hash=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+        
+        if [[ "$local_hash" == "$remote_hash" ]]; then
+            echo -e "${GRN}[+] already up to date${NC}"
+        else
+            echo -e "${YEL}[*] updating...${NC}"
+            git pull
+            echo -e "${GRN}[+] updated${NC}"
+        fi
+    else
+        echo -e "${RED}not a git repo, can't update${NC}"
+        echo -e "${YEL}reinstall from github or use git clone${NC}"
+    fi
+    exit 0
+fi
+
+# check for version flag
+if [[ "$1" == "--version" || "$1" == "-v" ]]; then
+    echo "flour_mill v${VERSION}"
+    exit 0
+fi
+
+# grab target from args if provided
+if [[ -n "$1" && "$1" != -* ]]; then
+    TARGET="$1"
+fi
 
 banner() {
     echo -e "${BLU}"
