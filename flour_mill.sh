@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# flour mill
+# flour mill Version 1.5
 # automated recon - scans, checks vulns, runs tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
-VERSION="1.0"
+VERSION="1.5"
 
 # check for update flag
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
