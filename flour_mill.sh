@@ -140,12 +140,97 @@ check_deps() {
     
     [[ ! $(command -v nmap) ]] && { echo -e "${RED}need nmap${NC}"; exit 1; }
     
-    # install missing stuff
+    # check wordlists
+    check_wordlists
+    
+    # install wordlists
+install_wordlists() {
+    echo -e "${YEL}[*] installing wordlists...${NC}\n"
+    
+    # dirb
+    if [ ! -f "/usr/share/wordlists/dirb/common.txt" ]; then
+        echo -e "${BLU}[*] dirb wordlists...${NC}"
+        sudo apt install -y dirb 2>/dev/null
+        [ -f "/usr/share/wordlists/dirb/common.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    # dirbuster
+    if [ ! -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ]; then
+        echo -e "${BLU}[*] dirbuster wordlists...${NC}"
+        sudo apt install -y dirbuster 2>/dev/null
+        [ -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    # rockyou
+    if [ ! -f "/usr/share/wordlists/rockyou.txt" ]; then
+        echo -e "${BLU}[*] rockyou...${NC}"
+        if [ -f "/usr/share/wordlists/rockyou.txt.gz" ]; then
+            sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] extracted${NC}" || echo -e "${RED}[-] failed${NC}"
+        else
+            sudo apt install -y wordlists 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt.gz" ] && sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+        fi
+    fi
+    
+    # seclists
+    if [ ! -d "/usr/share/seclists" ]; then
+        echo -e "${BLU}[*] seclists...${NC}"
+        sudo apt install -y seclists 2>/dev/null || {
+            # fallback to github
+            sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null
+        }
+        [ -d "/usr/share/seclists" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    echo -e "\n${GRN}wordlists setup done${NC}\n"
+}
+
+# install missing stuff
     if [ ${#MISSING[@]} -gt 0 ]; then
         echo -e "${YEL}missing ${#MISSING[@]} tools${NC}"
         read -p "install? (y/n): " inst
         
         [[ "$inst" =~ ^[Yy]$ ]] && install_missing
+        echo ""
+    fi
+}
+
+# check for wordlists
+check_wordlists() {
+    echo -e "${YEL}[*] checking wordlists...${NC}\n"
+    
+    wordlists=(
+        "/usr/share/wordlists/dirb/common.txt:dirb common"
+        "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt:dirbuster medium"
+        "/usr/share/wordlists/rockyou.txt:rockyou"
+        "/usr/share/seclists:seclists"
+    )
+    
+    missing_wl=()
+    
+    for wl in "${wordlists[@]}"; do
+        path=$(echo "$wl" | cut -d: -f1)
+        name=$(echo "$wl" | cut -d: -f2)
+        
+        if [ -e "$path" ]; then
+            echo -e "${GRN}[+]${NC} $name"
+        else
+            echo -e "${RED}[-]${NC} $name"
+            missing_wl+=("$name")
+        fi
+    done
+    
+    echo ""
+    
+    if [ ${#missing_wl[@]} -gt 0 ]; then
+        echo -e "${YEL}missing ${#missing_wl[@]} wordlists${NC}"
+        read -p "install wordlists? (y/n): " inst_wl
+        
+        if [[ "$inst_wl" =~ ^[Yy]$ ]]; then
+            install_wordlists
+        fi
         echo ""
     fi
 }
