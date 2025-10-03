@@ -1,64 +1,42 @@
-# Flour Mill
+# flour mill v2.0
 
-automated pentesting recon tool - scans ports, detects os, checks vulns, suggests tools, installs missing stuff
+automated recon tool - scans, checks vulns, runs tools
 
 ## what it does
 
-1. checks what tools you got installed
-2. auto-installs missing tools (asks first)
-3. pings target and detects OS from TTL
-4. runs nmap (tcp or udp, your choice)
-5. parses open ports/services
-6. checks CVEs, github, exploit-db for each service
-7. suggests tools for each port
-8. runs them interactively
-9. logs everything with timestamps
-10. shows summary with timing and vulns found
+scans ports, detects OS, checks for CVEs/exploits, suggests tools based on what's open, installs missing stuff, logs everything
 
 ## requirements
 
-**must have:**
+**need:**
 - nmap
-- sudo
-- curl (for vuln checks)
-- git (for updates)
-- internet (for auto-install and vuln lookups)
+- sudo  
+- curl
+- git
+- internet
 
-**optional (script offers to install these):**
-- netexec (replaces crackmapexec)
-- kerbrute
-- impacket tools (GetNPUsers, GetUserSPNs)
+**optional (auto-installs if you want):**
+- netexec, kerbrute, impacket
 - enum4linux, smbclient
 - hydra, medusa
-- nikto, gobuster, dirb, sqlmap
-- ssh-audit, msfconsole, responder
-- ldapsearch, dig, dnsenum
-- searchsploit
+- nikto, gobuster, ffuf, dirsearch, nuclei
+- sqlmap, ssh-audit, msfconsole, responder
+- ldapsearch, dig, dnsenum, searchsploit
+- go (for ffuf/nuclei)
 
-script will ask to install any missing tools automatically
+## install
 
-**basic:**
 ```bash
-git clone https://github.com/MalwareMusashi/flour-mill
+git clone https://github.com/yourusername/flour_mill.git
 cd flour_mill
 chmod +x flour_mill.sh
 ./flour_mill.sh
 ```
 
-**install globally (run from anywhere):**
+**global install:**
 ```bash
-# from the repo directory
-chmod +x flour_mill.sh
-
-# copy to bin
 sudo cp flour_mill.sh /usr/local/bin/flour_mill
-
-# now just run
-flour_mill
-```
-
-**or symlink (recommended - easier to update):**
-```bash
+# or symlink it
 sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
 ```
 
@@ -67,9 +45,8 @@ sudo ln -s $(pwd)/flour_mill.sh /usr/local/bin/flour_mill
 sudo rm /usr/local/bin/flour_mill
 ```
 
-## updating
+## update
 
-**if installed via git:**
 ```bash
 flour_mill --update
 ```
@@ -77,258 +54,128 @@ flour_mill --update
 or
 
 ```bash
-flour_mill -u
-```
-
-**manual update (if not using git):**
-```bash
 cd ~/flour_mill
 git pull
-
-# if symlinked, you're done
-# if copied to /usr/local/bin:
-sudo cp flour_mill.sh /usr/local/bin/flour_mill
-```
-
-**check version:**
-```bash
-flour_mill --version
 ```
 
 ## usage
 
-**three ways to set target:**
+three ways to run:
 
 ```bash
-# 1. command line argument
+# 1. pass target as arg
 flour_mill 192.168.1.100
 
-# 2. exported variable
+# 2. export first
 export TARGET=192.168.1.100
 flour_mill
 
-# 3. interactive prompt
+# 3. let it ask
 flour_mill
-target: _
 ```
 
 ### scan types
 
-1. quick - top 1k ports
-2. standard - all ports + versions (recommended)
-3. full - aggressive, OS detection
-4. stealth - SYN scan, slow timing
-5. udp - top 1k udp ports
-6. udp full - all udp ports (very slow)
-7. custom - enter your own nmap flags
+1. quick - top 1k
+2. standard - all ports + versions
+3. full - aggressive 
+4. stealth - slow and quiet
+5. quick stealth - htb safe
+6. quick aggressive - htb fast
+7. udp - top 1k udp
+8. udp full - all udp (slow)
+9. custom - your flags
 
-### output locations
+### naming scans
 
-1. Documents folder - `~/Documents/scans/` (default)
-2. current directory - `./scans/`
-3. custom path - specify your own
-
-### auto-install feature
-
-when script runs, if tools are missing:
+can name your scans for better organization:
 
 ```
-[*] checking tools...
-[+] nmap
-[-] netexec
-[-] kerbrute
-...
+scan name (optional):
+name (or enter for default): htb-box-recon
+```
 
-got: 8 | missing: 5
+creates: `htb-box-recon_192.168.1.100_20241003_143022/`
 
-missing 5 tools
+or just hit enter for: `192.168.1.100_20241003_143022/`
+
+### output dirs
+
+1. ~/Documents/scans (default)
+2. ./scans  
+3. custom path
+
+### auto install
+
+if tools missing:
+
+```
+missing 6 tools
 install? (y/n): y
 
-[*] installing...
-[*] getting pipx...
-[*] netexec...
-[+] installed
-[*] kerbrute...
-[+] installed
-...
+go not found, needed for ffuf
+install go? (y/n): y
 
-done: 13 available
+[installs everything]
+
+done: 21 available
 ```
 
-handles:
-- python tools via pipx (netexec, impacket)
-- github releases (kerbrute)
-- apt packages (everything else)
+handles pipx, go, github releases, apt
 
 ### os detection
 
-script pings target and detects os from TTL:
+pings target, checks TTL:
 
 ```
-[*] checking...
-[+] up
 [+] probably windows (ttl=128)
 ```
 
-ttl ranges:
-- 250-256: bsd/cisco/oracle
-- 120-130: windows
+- 250-256: bsd/cisco
+- 120-130: windows  
 - 60-70: linux
 
-### vuln checking
+### vuln checks
 
-for each service with version:
+for each service asks if you want vuln check:
 
 ```
-port 445 - smb
-version: Samba 3.0.20
-
 check vulns? (y/n): y
 
-[*] vuln check...
-[*] nvd...
-[!] cves:
-    → CVE-2007-2447
+╔════════════════════════════════════════════════════════╗
+║        CVEs FOUND - POTENTIAL VULNERABILITIES          ║
+╚════════════════════════════════════════════════════════╝
 
-[*] github...
-[!] found:
-    → github.com/amriunix/CVE-2007-2447
+  ▶ CVE-2007-2447
+    https://nvd.nist.gov/vuln/detail/CVE-2007-2447
 
-[*] exploit-db...
-[!] found:
-Samba 3.0.20 < 3.0.25rc3 - Command Execution
+╔════════════════════════════════════════════════════════╗
+║            EXPLOITS AVAILABLE ON GITHUB                ║
+╚════════════════════════════════════════════════════════╝
+
+  ▶ https://github.com/amriunix/CVE-2007-2447
 ```
 
-checks:
-- NVD (NIST vulnerability database)
-- github repos (sorted by stars)
-- exploit-db (via searchsploit)
+searches nvd, github, exploit-db
 
-all vulns saved to `vulns.txt` in output dir
+saves everything to vulns.txt
 
-### example run
+## output
 
 ```
-$ flour_mill 192.168.1.100
-
-[flour mill ascii art]
-
-[*] checking tools...
-[+] nmap
-[-] netexec
-...
-
-missing 3 tools
-install? (y/n): y
-
-[*] installing...
-[+] netexec installed
-...
-
-[+] using exported target: 192.168.1.100
-[*] checking...
-[+] up
-[+] probably windows (ttl=128)
-
-scan type:
-1) quick
-2) standard
-3) full
-4) stealth
-5) udp
-6) udp full
-7) custom
-> 2
-
-verbosity:
-1) normal
-2) -v
-3) -vv
-> 1
-
-save to:
-1) ~/Documents/scans
-2) ./scans
-3) custom
-> 1
-
-[+] setup done
-    -sS -sV -sC -p-
-    /home/user/Documents/scans/192.168.1.100_20241002_153022
-
-[*] scanning...
-
-[*] starting scan...
-    sudo nmap -sS -sV -sC -p- 192.168.1.100
-    might take a bit...
-
-[+] scan done
-
-[*] parsing...
-
-open:
-139/tcp  open  netbios-ssn  Samba 3.0.20
-445/tcp  open  smb          Samba 3.0.20
-
-========================================
-port 445 - smb
-version: Samba 3.0.20
-========================================
-
-check vulns? (y/n): y
-
-[*] vuln check...
-[!] cves:
-    → CVE-2007-2447
-
-[!] found:
-    → github.com/amriunix/CVE-2007-2447
-
-tool: netexec
-desc: smb test
-cmd: netexec smb 192.168.1.100 -u '' -p ''
-[+] available
-run? (y/n): y
-...
-
-===== SUMMARY =====
-
-target: 192.168.1.100
-os: windows
-type: standard
-time: 5m 23s
-
-files:
-  /home/user/Documents/scans/192.168.1.100_20241002_153022/nmap.txt
-  /home/user/Documents/scans/192.168.1.100_20241002_153022/nmap.xml
-  /home/user/Documents/scans/192.168.1.100_20241002_153022/ports.txt
-  logs: 3 files
-
-ports: 2 open
-
-vulns found:
-[smb:Samba 3.0.20] CVE-2007-2447
-[smb:Samba 3.0.20] github.com/amriunix/CVE-2007-2447
-
-done
-```
-
-## output structure
-
-```
-~/Documents/scans/192.168.1.100_20241002_153022/
+~/Documents/scans/htb-initial_192.168.1.100_20241003/
 ├── nmap.txt
 ├── nmap.xml
 ├── nmap.gnmap
 ├── ports.txt
-├── vulns.txt           # all found vulns
+├── vulns.txt
 └── logs/
-    ├── netexec_p445_20241002_153022.txt
-    ├── enum4linux_p445_20241002_153022.txt
-    └── gobuster_p80_20241002_153022.txt
+    ├── nuclei_p80_timestamp.txt
+    ├── gobuster_p80_timestamp.txt
+    └── enum4linux_p445_timestamp.txt
 ```
 
-## port → tool mappings
+## port mappings
 
 | port | service | tools |
 |------|---------|-------|
@@ -337,105 +184,115 @@ done
 | 3389 | rdp | hydra |
 | 22 | ssh | ssh-audit, hydra |
 | 21 | ftp | hydra |
-| 80, 443, 8080, 8443 | http/https | nikto, gobuster, sqlmap |
+| 80, 443, 8080, 8443 | web | nikto, gobuster, ffuf, dirsearch, nuclei, sqlmap |
 | 389, 636 | ldap | ldapsearch |
 | 53 | dns | dig, dnsenum |
 
+## tools
+
+**nikto** - web vuln scanner  
+**gobuster** - dir bruteforce  
+**ffuf** - fast fuzzer  
+**dirsearch** - web scanner  
+**nuclei** - vuln templates (1000+ checks)  
+**sqlmap** - sqli testing  
+**enum4linux** - smb enum  
+**smbclient** - smb client  
+**netexec** - multi-protocol testing  
+**ssh-audit** - ssh config check
+
+### nuclei
+
+first time setup:
+```bash
+nuclei -update-templates
+```
+
+use it:
+```bash
+nuclei -u http://target.com -severity critical,high
+```
+
+## independent usage
+
+all tools work outside flour mill after install:
+
+```bash
+nmap -sV 192.168.1.100
+gobuster dir -u http://site.com -w wordlist.txt
+ffuf -w wordlist.txt -u http://site.com/FUZZ
+nuclei -u http://site.com
+netexec smb 192.168.1.100 -u admin -p pass
+```
+
+flour mill just installs them, suggests when to use them, logs output
+
 ## tips
 
-- run as sudo (needed for syn/udp scans)
-- have wordlists in `/usr/share/wordlists/`
-- vuln checks need internet
-- script auto-installs tools but you can skip
-- all output timestamped and organized
-- vulns saved to summary file
-- symlink install = easier updates
+- need sudo for scans
+- name scans to stay organized
+- nuclei needs template update first time
+- all tools stay after install
+- symlink install = easy updates
+- wordlists in /usr/share/wordlists/
 
-## common issues
+## issues
 
-**"need nmap"**
+**no nmap:**
 ```bash
 sudo apt install nmap
 ```
 
-**"scan failed"**
-- verify sudo access
-- ping target manually first
-- try stealth scan if filtered
+**scan fails:**
+- check sudo
+- ping target first
+- try stealth scan
 
-**"no net" during vuln checks**
-- need curl: `sudo apt install curl`
-- check network connection
-- vuln checks will be skipped
-
-**tool install fails**
+**vuln check fails:**
 ```bash
-# manual installs
-sudo apt install pipx
-pipx install git+https://github.com/Pennyw0rth/NetExec
-pipx install impacket
-
-# kerbrute
-wget https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64
-chmod +x kerbrute_linux_amd64
-sudo mv kerbrute_linux_amd64 /usr/local/bin/kerbrute
+sudo apt install curl
 ```
 
-**"not a git repo, can't update"**
-- reinstall via git clone
-- or manually pull changes
+**tool install fails:**
+```bash
+sudo apt install pipx golang-go
+pipx install git+https://github.com/Pennyw0rth/NetExec
+go install github.com/ffuf/ffuf@latest
+go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+```
 
-**can't find output**
-- check path in summary
-- default: `~/Documents/scans/`
-- use `find ~ -name "nmap.txt"` to locate
+**nuclei no templates:**
+```bash
+nuclei -update-templates
+```
 
 ## flags
 
 ```bash
-flour_mill --update        # update from git
-flour_mill -u              # same
-
-flour_mill --version       # show version
-flour_mill -v              # same
-
-flour_mill 192.168.1.100   # run with target
+flour_mill --update        # update
+flour_mill --version       # version
+flour_mill 192.168.1.100   # run
 ```
-
-## features
-
-- **auto tool installation** - installs missing tools automatically
-- **os detection** - detects target os from ping ttl
-- **vuln checking** - searches nvd, github, exploit-db
-- **tcp/udp scanning** - supports both protocols
-- **timing stats** - shows how long everything took
-- **organized output** - timestamped dirs and files
-- **vuln aggregation** - all findings in one summary file
-- **self-update** - update script with one command
-- **multiple target methods** - cli arg, export, or prompt
 
 ## changelog
 
+**v2.0**
+- nuclei scanner added
+- scan naming
+- go auto-install
+- 6 web tools now (added nuclei)
+
+**v1.5**  
+- quick stealth/aggressive scans
+- ffuf, dirsearch added
+- unicode vuln boxes
+- better target handling
+
 **v1.0**
 - initial release
-- auto-install for all tools
-- os detection from ttl values
-- vuln checking (nvd, github, exploit-db)
-- vuln summary file
-- timing in summary output
-- port counting
-- udp scanning support
-- netexec replaces crackmapexec
-- self-update functionality
-- command-line target argument
-- improved target handling (export/arg/prompt)
-- version flag
 
 ---
 
-built for ctfs and quick pentests. automates the boring enum stuff so you can focus on exploitation.
+made for ctfs and pentests. automates boring enum.
 
-**update regularly:**
-```bash
-flour_mill --update
-```
+update: `flour_mill --update`
