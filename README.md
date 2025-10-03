@@ -37,8 +37,6 @@ automated pentesting recon tool - scans ports, detects os, checks vulns, suggest
 
 script will ask to install any missing tools automatically
 
-## setup
-
 **basic:**
 ```bash
 git clone https://github.com/yourusername/flour_mill.git
