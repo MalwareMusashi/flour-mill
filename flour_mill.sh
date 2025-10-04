@@ -285,7 +285,22 @@ install_missing() {
                 ;;
             impacket-*)
                 # all impacket tools come from one package
-                pipx install impacket 2>/dev/null
+                if ! pipx list | grep -q "impacket"; then
+                    echo -e "${YEL}[*] installing impacket suite...${NC}"
+                    pipx install impacket 2>/dev/null
+                    
+                    # make sure path is updated
+                    pipx ensurepath
+                    
+                    # verify it worked
+                    if command -v impacket-secretsdump &>/dev/null; then
+                        echo -e "${GRN}[+] impacket installed${NC}"
+                    else
+                        echo -e "${YEL}[!] impacket installed but not in PATH${NC}"
+                        echo -e "${YEL}    run: source ~/.bashrc${NC}"
+                        echo -e "${YEL}    or restart your terminal${NC}"
+                    fi
+                fi
                 ;;
             enum4linux-ng)
                 pipx install git+https://github.com/cddmp/enum4linux-ng 2>/dev/null
