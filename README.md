@@ -7,9 +7,10 @@ automated recon wrapper for nmap + tools. scans stuff, checks for vulns, runs th
 basically wraps nmap and a bunch of other pentesting tools into one script. point it at a target, pick a scan type, and it'll:
 - scan ports
 - detect the OS (roughly)
-- check for known CVEs
+- check for known CVEs across multiple databases
 - suggest tools for whatever's open
 - optionally run those tools and log everything
+- organize output like AutoRecon (scans/, exploit/, loot/, report/)
 
 made this because i was tired of running the same commands over and over during CTFs and pentests.
 
@@ -115,6 +116,8 @@ saves everything to `~/Documents/scans` by default (you can change this):
 depending on what ports are open, it'll suggest:
 
 **web (80/443/8080/8443):**
+- whatweb (fingerprinting)
+- eyewitness (screenshots)
 - nikto
 - gobuster
 - ffuf
@@ -123,20 +126,20 @@ depending on what ports are open, it'll suggest:
 - sqlmap
 
 **smb (139/445):**
-- enum4linux
+- enum4linux-ng
 - smbclient
 - netexec
+- impacket (secretsdump, psexec, smbexec, wmiexec)
 
 **kerberos (88/464):**
 - kerbrute
-- GetNPUsers
-- GetUserSPNs
+- impacket (GetNPUsers, GetUserSPNs)
 
 **ssh (22):**
 - ssh-audit
 - hydra
 
-**plus:** ftp/rdp bruteforce, ldap enum, dns queries, etc.
+**plus:** ftp/rdp bruteforce, ldap enum, dns queries (dig/dnsx/dnsenum), etc.
 
 if you don't have something installed, it'll offer to install it. handles apt, pipx, go installs, and github releases.
 
