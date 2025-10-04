@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# flour mill
-# automated recon - scans, checks vulns, runs tools
+# flour mill - automated recon wrapper
+# runs nmap, checks vulns, suggests tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
 RED='\033[0;31m'
@@ -20,7 +20,7 @@ SCAN_TYPE=""
 os=""
 VERSION="2.0"
 
-# check for update flag
+# update check
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
     echo -e "${YEL}[*] checking for updates...${NC}"
     
@@ -47,13 +47,13 @@ if [[ "$1" == "--update" || "$1" == "-u" ]]; then
     exit 0
 fi
 
-# check for version flag
+# version
 if [[ "$1" == "--version" || "$1" == "-v" ]]; then
     echo "flour_mill v${VERSION}"
     exit 0
 fi
 
-# grab target from args if provided
+# check if target passed as arg
 if [[ -n "$1" && "$1" != -* ]]; then
     TARGET="$1"
 fi
@@ -94,10 +94,10 @@ EOF
     echo -e "${NC}\n"
 }
 
-# check deps
 check_deps() {
     echo -e "${YEL}[*] checking tools...${NC}\n"
     
+    # list of tools we might want
     tools=(
         "nmap:network scanning"
         "kerbrute:kerberos enum"
@@ -138,56 +138,12 @@ check_deps() {
     
     echo -e "\n${GRN}got: ${#AVAIL[@]}${NC} | ${RED}missing: ${#MISSING[@]}${NC}\n"
     
+    # nmap is absolutely required
     [[ ! $(command -v nmap) ]] && { echo -e "${RED}need nmap${NC}"; exit 1; }
     
-    # check wordlists
     check_wordlists
     
-    # install wordlists
-install_wordlists() {
-    echo -e "${YEL}[*] installing wordlists...${NC}\n"
-    
-    # dirb
-    if [ ! -f "/usr/share/wordlists/dirb/common.txt" ]; then
-        echo -e "${BLU}[*] dirb wordlists...${NC}"
-        sudo apt install -y dirb 2>/dev/null
-        [ -f "/usr/share/wordlists/dirb/common.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
-    fi
-    
-    # dirbuster
-    if [ ! -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ]; then
-        echo -e "${BLU}[*] dirbuster wordlists...${NC}"
-        sudo apt install -y dirbuster 2>/dev/null
-        [ -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
-    fi
-    
-    # rockyou
-    if [ ! -f "/usr/share/wordlists/rockyou.txt" ]; then
-        echo -e "${BLU}[*] rockyou...${NC}"
-        if [ -f "/usr/share/wordlists/rockyou.txt.gz" ]; then
-            sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
-            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] extracted${NC}" || echo -e "${RED}[-] failed${NC}"
-        else
-            sudo apt install -y wordlists 2>/dev/null
-            [ -f "/usr/share/wordlists/rockyou.txt.gz" ] && sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
-            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
-        fi
-    fi
-    
-    # seclists
-    if [ ! -d "/usr/share/seclists" ]; then
-        echo -e "${BLU}[*] seclists...${NC}"
-        sudo apt install -y seclists 2>/dev/null || {
-            # fallback to github
-            sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null
-        }
-        [ -d "/usr/share/seclists" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
-    fi
-    
-    echo -e "\n${GRN}wordlists setup done${NC}\n"
-}
-
-# install missing stuff
+    # offer to install missing stuff
     if [ ${#MISSING[@]} -gt 0 ]; then
         echo -e "${YEL}missing ${#MISSING[@]} tools${NC}"
         read -p "install? (y/n): " inst
@@ -197,7 +153,6 @@ install_wordlists() {
     fi
 }
 
-# check for wordlists
 check_wordlists() {
     echo -e "${YEL}[*] checking wordlists...${NC}\n"
     
@@ -235,11 +190,10 @@ check_wordlists() {
     fi
 }
 
-# install wordlists
 install_wordlists() {
     echo -e "${YEL}[*] installing wordlists...${NC}\n"
     
-    # dirb
+    # dirb common
     if [ ! -f "/usr/share/wordlists/dirb/common.txt" ]; then
         echo -e "${BLU}[*] dirb wordlists...${NC}"
         sudo apt install -y dirb 2>/dev/null
@@ -270,7 +224,7 @@ install_wordlists() {
     if [ ! -d "/usr/share/seclists" ]; then
         echo -e "${BLU}[*] seclists...${NC}"
         sudo apt install -y seclists 2>/dev/null || {
-            # fallback to github
+            # apt failed, try github
             sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null
         }
         [ -d "/usr/share/seclists" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
@@ -279,11 +233,10 @@ install_wordlists() {
     echo -e "\n${GRN}wordlists setup done${NC}\n"
 }
 
-# install missing
 install_missing() {
     echo -e "${YEL}[*] installing...${NC}\n"
     
-    # need pipx for some stuff
+    # check if we need pipx for anything
     need_pipx=false
     for t in "${MISSING[@]}"; do
         case $t in
@@ -297,14 +250,14 @@ install_missing() {
         pipx ensurepath
     fi
     
-    # check if go needed
+    # check if we need go
     need_go=false
     for t in "${MISSING[@]}"; do
         [[ "$t" == "ffuf" || "$t" == "nuclei" ]] && need_go=true
     done
     
     if $need_go && ! command -v go &>/dev/null; then
-        echo -e "${YEL}go not found, needed for ffuf${NC}"
+        echo -e "${YEL}go not found, needed for ffuf/nuclei${NC}"
         read -p "install go? (y/n): " inst_go
         if [[ "$inst_go" =~ ^[Yy]$ ]]; then
             echo -e "${YEL}[*] installing go...${NC}"
@@ -312,6 +265,7 @@ install_missing() {
         fi
     fi
     
+    # install each missing tool
     for t in "${MISSING[@]}"; do
         echo -e "${BLU}[*] $t...${NC}"
         
@@ -328,29 +282,23 @@ install_missing() {
                 sudo mv /tmp/kerbrute /usr/local/bin/kerbrute 2>/dev/null
                 ;;
             ffuf)
-                # check if go is installed
                 if command -v go &>/dev/null; then
                     go install github.com/ffuf/ffuf@latest 2>/dev/null
-                    # move from ~/go/bin to /usr/local/bin if exists
                     [[ -f ~/go/bin/ffuf ]] && sudo cp ~/go/bin/ffuf /usr/local/bin/ 2>/dev/null
                 else
-                    # try apt first
                     sudo apt install -y ffuf 2>/dev/null
                 fi
                 ;;
             nuclei)
-                # install via go
                 if command -v go &>/dev/null; then
                     go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest 2>/dev/null
                     [[ -f ~/go/bin/nuclei ]] && sudo cp ~/go/bin/nuclei /usr/local/bin/ 2>/dev/null
                 else
-                    # try apt
                     sudo apt install -y nuclei 2>/dev/null
                 fi
                 ;;
             dirsearch)
                 sudo apt install -y dirsearch 2>/dev/null || {
-                    # fallback to github
                     git clone https://github.com/maurosoria/dirsearch.git /tmp/dirsearch 2>/dev/null
                     sudo cp /tmp/dirsearch/dirsearch.py /usr/local/bin/dirsearch 2>/dev/null
                     sudo chmod +x /usr/local/bin/dirsearch 2>/dev/null
@@ -388,9 +336,8 @@ has_tool() {
     return 1
 }
 
-# get target and detect os
 get_target() {
-    # check if TARGET is already set
+    # use exported TARGET if set
     if [[ -n "$TARGET" ]]; then
         echo -e "${GRN}[+] using exported target: $TARGET${NC}"
     else
@@ -400,6 +347,7 @@ get_target() {
     
     echo -e "${YEL}[*] checking...${NC}"
     
+    # ping to check if it's up and guess OS from TTL
     kernel=$(uname -s)
     [ $kernel = "Linux" ] && tw="W" || tw="t"
     
@@ -410,7 +358,7 @@ get_target() {
         
         ttl=$(echo "$ping_out" | grep -oP 'ttl=\K[0-9]+')
         
-        # detect os
+        # rough OS detection based on TTL
         if [[ $ttl -ge 250 && $ttl -le 256 ]]; then
             os="bsd/cisco"
         elif [[ $ttl -ge 120 && $ttl -le 130 ]]; then
@@ -429,7 +377,6 @@ get_target() {
     echo ""
 }
 
-# setup scan
 setup_scan() {
     echo -e "${YEL}scan type:${NC}"
     echo "1) quick"
@@ -466,7 +413,7 @@ setup_scan() {
     [[ $v == 2 ]] && verb="-v"
     [[ $v == 3 ]] && verb="-vv"
     
-    # where to save
+    # output location
     echo -e "\n${YEL}save to:${NC}"
     echo "1) ~/Documents/scans"
     echo "2) ./scans"
@@ -483,7 +430,7 @@ setup_scan() {
         *) base="$HOME/Documents/scans" ;;
     esac
     
-    # ask for scan name
+    # optional scan name
     echo -e "\n${YEL}scan name (optional):${NC}"
     read -p "name (or enter for default): " scan_name
     
@@ -500,7 +447,6 @@ setup_scan() {
     echo -e "    $OUTDIR\n"
 }
 
-# run scan
 run_scan() {
     echo -e "${YEL}[*] scanning...${NC}\n"
     
@@ -522,12 +468,12 @@ run_scan() {
     fi
 }
 
-# parse results
 parse_results() {
     echo -e "${YEL}[*] parsing...${NC}\n"
     
     [[ ! -f "$nmapout" ]] && { echo -e "${RED}no output${NC}"; exit 1; }
     
+    # pull out just the open ports
     grep -E "^[0-9]+/(tcp|udp).*open" "$nmapout" > "$OUTDIR/ports.txt" || true
     
     if [[ ! -s "$OUTDIR/ports.txt" ]]; then
@@ -540,7 +486,6 @@ parse_results() {
     echo ""
 }
 
-# check vulns
 check_vulns() {
     local svc=$1
     local ver=$2
@@ -551,12 +496,13 @@ check_vulns() {
     
     search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
     
+    # quick connectivity check
     ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}no net${NC}"; return; }
     command -v curl &>/dev/null || { echo -e "${RED}need curl${NC}"; return; }
     
     found_vulns=false
     
-    # nvd
+    # check NVD
     echo -e "\n${YEL}[*] searching NVD for: $search${NC}"
     cves=$(curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${search// /%20}" 2>/dev/null)
     
@@ -574,7 +520,7 @@ check_vulns() {
         echo -e "${GRN}  ✓ no known CVEs${NC}"
     fi
     
-    # github
+    # check github for exploits
     echo -e "\n${YEL}[*] searching GitHub for exploits...${NC}"
     gh="${search// /+}+exploit"
     repos=$(curl -s "https://api.github.com/search/repositories?q=${gh}&sort=stars&order=desc" 2>/dev/null)
@@ -592,7 +538,7 @@ check_vulns() {
         echo -e "${GRN}  ✓ no public exploits found${NC}"
     fi
     
-    # searchsploit
+    # check exploit-db if available
     if command -v searchsploit &>/dev/null; then
         echo -e "\n${YEL}[*] searching Exploit-DB...${NC}"
         ex=$(searchsploit "$search" 2>/dev/null | grep -v "Exploits: No Results")
@@ -609,7 +555,7 @@ check_vulns() {
         fi
     fi
     
-    # summary box if vulns found
+    # show summary
     if $found_vulns; then
         echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║                                                        ║${NC}"
@@ -628,11 +574,11 @@ check_vulns() {
     echo ""
 }
 
-# get tool suggestions
 get_tools() {
     p=$1
     svc=$2
     
+    # suggest tools based on port/service
     case $p in
         88|464)
             [[ "$svc" =~ kerberos ]] && {
@@ -691,7 +637,6 @@ get_tools() {
     esac
 }
 
-# run tools
 run_tools() {
     while read line; do
         p=$(echo "$line" | awk '{print $1}' | cut -d'/' -f1)
@@ -703,7 +648,7 @@ run_tools() {
         [[ -n "$ver" ]] && echo -e "${YEL}version: $ver${NC}"
         echo -e "${BLU}========================================${NC}"
         
-        # vuln check
+        # ask about vuln check
         if [[ -n "$ver" ]]; then
             read -p "check vulns? (y/n): " vc
             [[ "$vc" =~ ^[Yy]$ ]] && check_vulns "$svc" "$ver"
@@ -713,6 +658,7 @@ run_tools() {
         
         [[ -z "$sugg" ]] && { echo -e "${YEL}nothing for this${NC}\n"; continue; }
         
+        # go through each suggested tool
         while IFS='|' read -r tool desc ex; do
             [[ -z "$tool" ]] && continue
             
@@ -751,13 +697,13 @@ run_tools() {
     done < "$OUTDIR/ports.txt"
 }
 
-# summary
 summary() {
     echo -e "\n${BLU}===== SUMMARY =====${NC}\n"
     
     end=$(date +%s)
     elapsed=$((end - start_time))
     
+    # format time nicely
     if [ $elapsed -gt 3600 ]; then
         h=$((elapsed / 3600))
         m=$(((elapsed % 3600) / 60))
