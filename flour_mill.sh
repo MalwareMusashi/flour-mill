@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # flour mill - automated recon wrapper
-# runs nmap, checks vulns, suggests tools
+# scans stuff, checks vulns, runs the right tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
 RED='\033[0;31m'
@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 start_time=$(date +%s)
 SCAN_TYPE=""
 os=""
-VERSION="2.0"
+VERSION="2.5"
 
 # update check
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
@@ -87,7 +87,7 @@ banner() {
     ||      ||
 
                         ╔═══════════════════════════════╗
-                        ║     Flour Mill v2.0           ║
+                        ║     Flour Mill v2.5           ║
                         ║   scan → parse → exploit      ║
                         ╚═══════════════════════════════╝
 EOF
@@ -97,13 +97,18 @@ EOF
 check_deps() {
     echo -e "${YEL}[*] checking tools...${NC}\n"
     
-    # list of tools we might want
+    # stuff we might want
     tools=(
         "nmap:network scanning"
         "kerbrute:kerberos enum"
         "impacket-GetNPUsers:asreproast"
         "impacket-GetUserSPNs:kerberoast"
-        "enum4linux:smb enum"
+        "impacket-secretsdump:dump secrets"
+        "impacket-psexec:remote exec"
+        "impacket-smbexec:smb exec"
+        "impacket-wmiexec:wmi exec"
+        "impacket-mssqlclient:mssql client"
+        "enum4linux-ng:smb enum"
         "smbclient:smb client"
         "netexec:protocol testing"
         "hydra:bruteforce"
@@ -114,6 +119,9 @@ check_deps() {
         "ffuf:web fuzzer"
         "dirsearch:web scanner"
         "nuclei:vuln scanner"
+        "whatweb:web fingerprint"
+        "eyewitness:web screenshots"
+        "dnsx:dns toolkit"
         "sqlmap:sqli"
         "ssh-audit:ssh check"
         "msfconsole:metasploit"
@@ -138,7 +146,7 @@ check_deps() {
     
     echo -e "\n${GRN}got: ${#AVAIL[@]}${NC} | ${RED}missing: ${#MISSING[@]}${NC}\n"
     
-    # nmap is absolutely required
+    # nmap is required, everything else is optional
     [[ ! $(command -v nmap) ]] && { echo -e "${RED}need nmap${NC}"; exit 1; }
     
     check_wordlists
@@ -236,11 +244,11 @@ install_wordlists() {
 install_missing() {
     echo -e "${YEL}[*] installing...${NC}\n"
     
-    # check if we need pipx for anything
+    # see if we need pipx for anything
     need_pipx=false
     for t in "${MISSING[@]}"; do
         case $t in
-            netexec|impacket-*|kerbrute) need_pipx=true ;;
+            netexec|impacket-*|enum4linux-ng) need_pipx=true ;;
         esac
     done
     
@@ -250,14 +258,14 @@ install_missing() {
         pipx ensurepath
     fi
     
-    # check if we need go
+    # see if we need go
     need_go=false
     for t in "${MISSING[@]}"; do
-        [[ "$t" == "ffuf" || "$t" == "nuclei" ]] && need_go=true
+        [[ "$t" == "ffuf" || "$t" == "nuclei" || "$t" == "dnsx" ]] && need_go=true
     done
     
     if $need_go && ! command -v go &>/dev/null; then
-        echo -e "${YEL}go not found, needed for ffuf/nuclei${NC}"
+        echo -e "${YEL}go not found, needed for ffuf/nuclei/dnsx${NC}"
         read -p "install go? (y/n): " inst_go
         if [[ "$inst_go" =~ ^[Yy]$ ]]; then
             echo -e "${YEL}[*] installing go...${NC}"
@@ -273,8 +281,12 @@ install_missing() {
             netexec)
                 pipx install git+https://github.com/Pennyw0rth/NetExec 2>/dev/null
                 ;;
-            impacket-GetNPUsers|impacket-GetUserSPNs)
+            impacket-*)
+                # all impacket tools come from one package
                 pipx install impacket 2>/dev/null
+                ;;
+            enum4linux-ng)
+                pipx install enum4linux-ng 2>/dev/null
                 ;;
             kerbrute)
                 wget -q https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 -O /tmp/kerbrute
@@ -296,6 +308,26 @@ install_missing() {
                 else
                     sudo apt install -y nuclei 2>/dev/null
                 fi
+                ;;
+            dnsx)
+                if command -v go &>/dev/null; then
+                    go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest 2>/dev/null
+                    [[ -f ~/go/bin/dnsx ]] && sudo cp ~/go/bin/dnsx /usr/local/bin/ 2>/dev/null
+                else
+                    sudo apt install -y dnsx 2>/dev/null
+                fi
+                ;;
+            eyewitness)
+                # eyewitness needs some setup
+                sudo apt install -y eyewitness 2>/dev/null || {
+                    git clone https://github.com/FortyNorthSecurity/EyeWitness.git /tmp/eyewitness 2>/dev/null
+                    cd /tmp/eyewitness/Python/setup
+                    sudo ./setup.sh 2>/dev/null
+                    sudo ln -s /tmp/eyewitness/Python/EyeWitness.py /usr/local/bin/eyewitness 2>/dev/null
+                }
+                ;;
+            whatweb)
+                sudo apt install -y whatweb 2>/dev/null
                 ;;
             dirsearch)
                 sudo apt install -y dirsearch 2>/dev/null || {
@@ -337,7 +369,7 @@ has_tool() {
 }
 
 get_target() {
-    # use exported TARGET if set
+    # use TARGET if already set
     if [[ -n "$TARGET" ]]; then
         echo -e "${GRN}[+] using exported target: $TARGET${NC}"
     else
@@ -347,7 +379,7 @@ get_target() {
     
     echo -e "${YEL}[*] checking...${NC}"
     
-    # ping to check if it's up and guess OS from TTL
+    # ping and guess OS from TTL
     kernel=$(uname -s)
     [ $kernel = "Linux" ] && tw="W" || tw="t"
     
@@ -358,7 +390,7 @@ get_target() {
         
         ttl=$(echo "$ping_out" | grep -oP 'ttl=\K[0-9]+')
         
-        # rough OS detection based on TTL
+        # guess OS based on TTL (not perfect but usually right)
         if [[ $ttl -ge 250 && $ttl -le 256 ]]; then
             os="bsd/cisco"
         elif [[ $ttl -ge 120 && $ttl -le 130 ]]; then
@@ -440,7 +472,8 @@ setup_scan() {
         OUTDIR="${base}/${TARGET}_${TIMESTAMP}"
     fi
     
-    mkdir -p "$OUTDIR/logs"
+    # create autorecon-style directory structure
+    mkdir -p "$OUTDIR"/{scans,exploit,loot,report,screenshots}
     
     echo -e "\n${GRN}[+] setup done${NC}"
     echo -e "    $flags $verb"
@@ -450,9 +483,9 @@ setup_scan() {
 run_scan() {
     echo -e "${YEL}[*] scanning...${NC}\n"
     
-    nmapout="$OUTDIR/nmap.txt"
-    nmapxml="$OUTDIR/nmap.xml"
-    nmapgrep="$OUTDIR/nmap.gnmap"
+    nmapout="$OUTDIR/scans/nmap.txt"
+    nmapxml="$OUTDIR/scans/nmap.xml"
+    nmapgrep="$OUTDIR/scans/nmap.gnmap"
     
     cmd="sudo nmap $flags $verb -oN $nmapout -oX $nmapxml -oG $nmapgrep $TARGET"
     
@@ -473,16 +506,16 @@ parse_results() {
     
     [[ ! -f "$nmapout" ]] && { echo -e "${RED}no output${NC}"; exit 1; }
     
-    # pull out just the open ports
-    grep -E "^[0-9]+/(tcp|udp).*open" "$nmapout" > "$OUTDIR/ports.txt" || true
+    # grab just the open ports
+    grep -E "^[0-9]+/(tcp|udp).*open" "$nmapout" > "$OUTDIR/scans/ports.txt" || true
     
-    if [[ ! -s "$OUTDIR/ports.txt" ]]; then
+    if [[ ! -s "$OUTDIR/scans/ports.txt" ]]; then
         echo -e "${RED}no open ports${NC}"
         exit 0
     fi
     
     echo -e "${GRN}open:${NC}\n"
-    cat "$OUTDIR/ports.txt"
+    cat "$OUTDIR/scans/ports.txt"
     echo ""
 }
 
@@ -496,7 +529,7 @@ check_vulns() {
     
     search=$(echo "$svc $ver" | sed 's/[^a-zA-Z0-9. ]//g')
     
-    # quick connectivity check
+    # make sure we have internet
     ping -c 1 8.8.8.8 &>/dev/null || { echo -e "${RED}no net${NC}"; return; }
     command -v curl &>/dev/null || { echo -e "${RED}need curl${NC}"; return; }
     
@@ -514,10 +547,27 @@ check_vulns() {
         echo "$cves" | grep -oP 'CVE-[0-9]{4}-[0-9]+' | head -5 | while read c; do
             echo -e "${RED}  ▶ $c${NC}"
             echo -e "    https://nvd.nist.gov/vuln/detail/$c"
-            echo "[$svc:$ver] $c" >> "$OUTDIR/vulns.txt"
+            echo "[$svc:$ver] $c" >> "$OUTDIR/report/vulns.txt"
         done
     else
         echo -e "${GRN}  ✓ no known CVEs${NC}"
+    fi
+    
+    # check Vulners API
+    echo -e "\n${YEL}[*] searching Vulners API...${NC}"
+    vulners=$(curl -s "https://vulners.com/api/v3/search/lucene/?query=${search// /%20}" 2>/dev/null)
+    
+    if echo "$vulners" | grep -q '"id"'; then
+        found_vulns=true
+        echo -e "\n${YEL}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YEL}║            VULNERS DATABASE RESULTS                    ║${NC}"
+        echo -e "${YEL}╚════════════════════════════════════════════════════════╝${NC}\n"
+        echo "$vulners" | grep -oP '"id":"\K[^"]+' | head -5 | while read v; do
+            echo -e "${YEL}  ▶ $v${NC}"
+            echo "[$svc:$ver] vulners: $v" >> "$OUTDIR/report/vulns.txt"
+        done
+    else
+        echo -e "${GRN}  ✓ no Vulners results${NC}"
     fi
     
     # check github for exploits
@@ -532,10 +582,27 @@ check_vulns() {
         echo -e "${YEL}╚════════════════════════════════════════════════════════╝${NC}\n"
         echo "$repos" | grep -oP '"full_name":\s*"\K[^"]+' | head -3 | while read r; do
             echo -e "${YEL}  ▶ https://github.com/$r${NC}"
-            echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/vulns.txt"
+            echo "[$svc:$ver] github.com/$r" >> "$OUTDIR/report/vulns.txt"
         done
     else
         echo -e "${GRN}  ✓ no public exploits found${NC}"
+    fi
+    
+    # check metasploit modules
+    if command -v msfconsole &>/dev/null; then
+        echo -e "\n${YEL}[*] searching Metasploit modules...${NC}"
+        msf=$(msfconsole -q -x "search ${svc}; exit" 2>/dev/null | grep -E "exploit|auxiliary")
+        
+        if [[ -n "$msf" ]]; then
+            found_vulns=true
+            echo -e "\n${RED}╔════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}║           METASPLOIT MODULES AVAILABLE                 ║${NC}"
+            echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}\n"
+            echo "$msf" | head -5
+            echo "$msf" | head -5 >> "$OUTDIR/report/vulns.txt"
+        else
+            echo -e "${GRN}  ✓ no MSF modules found${NC}"
+        fi
     fi
     
     # check exploit-db if available
@@ -549,7 +616,7 @@ check_vulns() {
             echo -e "${RED}║             EXPLOITS IN EXPLOIT-DB                     ║${NC}"
             echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}\n"
             echo "$ex" | head -5
-            echo "$ex" | head -5 >> "$OUTDIR/vulns.txt"
+            echo "$ex" | head -5 >> "$OUTDIR/report/vulns.txt"
         else
             echo -e "${GRN}  ✓ no exploits in database${NC}"
         fi
@@ -561,7 +628,7 @@ check_vulns() {
         echo -e "${RED}║                                                        ║${NC}"
         echo -e "${RED}║                    ACTION REQUIRED                     ║${NC}"
         echo -e "${RED}║          Vulnerabilities detected for $svc $ver        ║${NC}"
-        echo -e "${RED}║              Check vulns.txt for full details          ║${NC}"
+        echo -e "${RED}║              Check report/vulns.txt for details        ║${NC}"
         echo -e "${RED}║               Review suggested exploits above          ║${NC}"
         echo -e "${RED}║                                                        ║${NC}"
         echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
@@ -578,7 +645,7 @@ get_tools() {
     p=$1
     svc=$2
     
-    # suggest tools based on port/service
+    # figure out which tools to suggest based on port/service
     case $p in
         88|464)
             [[ "$svc" =~ kerberos ]] && {
@@ -589,9 +656,13 @@ get_tools() {
             ;;
         139|445)
             [[ "$svc" =~ netbios|microsoft-ds|smb ]] && {
-                echo "enum4linux|smb enum|enum4linux -a $TARGET"
+                echo "enum4linux-ng|smb enum|enum4linux-ng -A $TARGET"
                 echo "smbclient|shares|smbclient -L //$TARGET -N"
                 echo "netexec|smb test|netexec smb $TARGET -u '' -p ''"
+                echo "impacket-secretsdump|dump secrets|impacket-secretsdump DOMAIN/user:pass@$TARGET"
+                echo "impacket-psexec|remote exec|impacket-psexec DOMAIN/user:pass@$TARGET"
+                echo "impacket-smbexec|smb exec|impacket-smbexec DOMAIN/user:pass@$TARGET"
+                echo "impacket-wmiexec|wmi exec|impacket-wmiexec DOMAIN/user:pass@$TARGET"
             }
             ;;
         3389)
@@ -612,6 +683,8 @@ get_tools() {
             ;;
         80|443|8080|8443)
             [[ "$svc" =~ http|https|ssl ]] && {
+                echo "whatweb|fingerprint|whatweb http://$TARGET:$p"
+                echo "eyewitness|screenshot|eyewitness --web --single http://$TARGET:$p --no-prompt -d $OUTDIR/screenshots/"
                 echo "nikto|web scan|nikto -h $TARGET:$p"
                 echo "gobuster|dirs|gobuster dir -u http://$TARGET:$p -w /usr/share/wordlists/dirb/common.txt"
                 echo "ffuf|fuzzing|ffuf -w /usr/share/wordlists/dirb/common.txt -u http://$TARGET:$p/FUZZ"
@@ -625,9 +698,16 @@ get_tools() {
                 echo "ldapsearch|ldap enum|ldapsearch -x -h $TARGET -b 'dc=domain,dc=com'"
             }
             ;;
+        1433)
+            [[ "$svc" =~ ms-sql|mssql ]] && {
+                echo "impacket-mssqlclient|mssql client|impacket-mssqlclient DOMAIN/user:pass@$TARGET -windows-auth"
+                echo "netexec|mssql check|netexec mssql $TARGET -u user -p pass"
+            }
+            ;;
         53)
             [[ "$svc" =~ domain|dns ]] && {
                 echo "dig|dns query|dig @$TARGET ANY domain.com"
+                echo "dnsx|dns toolkit|dnsx -l subdomains.txt -d domain.com"
                 echo "dnsenum|dns enum|dnsenum --dnsserver $TARGET domain.com"
             }
             ;;
@@ -681,7 +761,10 @@ run_tools() {
                 echo -e "\n${BLU}[*] running $tool...${NC}"
                 echo -e "${BLU}    $uc${NC}\n"
                 
-                log="$OUTDIR/logs/${tool}_p${p}_${TIMESTAMP}.txt"
+                log="$OUTDIR/scans/${tool}_p${p}_${TIMESTAMP}.txt"
+                
+                # log command with timestamp so you can see what ran and when
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] $uc" >> "$OUTDIR/scans/commands.log"
                 
                 eval "$uc" 2>&1 | tee "$log"
                 
@@ -694,7 +777,7 @@ run_tools() {
         
         echo ""
         
-    done < "$OUTDIR/ports.txt"
+    done < "$OUTDIR/scans/ports.txt"
 }
 
 summary() {
@@ -703,7 +786,7 @@ summary() {
     end=$(date +%s)
     elapsed=$((end - start_time))
     
-    # format time nicely
+    # make the time look nice
     if [ $elapsed -gt 3600 ]; then
         h=$((elapsed / 3600))
         m=$(((elapsed % 3600) / 60))
@@ -722,27 +805,30 @@ summary() {
     echo -e "${YEL}type:${NC} $SCAN_TYPE"
     echo -e "${YEL}time:${NC} $time\n"
     
-    echo -e "${GRN}files:${NC}"
-    echo -e "  $nmapout"
-    echo -e "  $nmapxml"
-    echo -e "  $OUTDIR/ports.txt"
+    echo -e "${GRN}output structure:${NC}"
+    echo -e "  $OUTDIR/"
+    echo -e "  ├── scans/      (nmap, tool outputs)"
+    echo -e "  ├── exploit/    (exploits go here)"
+    echo -e "  ├── loot/       (creds, hashes)"
+    echo -e "  ├── report/     (vulns, findings)"
+    echo -e "  └── screenshots/ (web screenshots)\n"
     
-    logs=$(ls -1 "$OUTDIR/logs" 2>/dev/null | wc -l)
-    echo -e "  logs: $logs files\n"
+    scans=$(ls -1 "$OUTDIR/scans" 2>/dev/null | wc -l)
+    echo -e "${GRN}scan files: $scans${NC}\n"
     
-    if [ -f "$OUTDIR/ports.txt" ]; then
-        pc=$(wc -l < "$OUTDIR/ports.txt")
+    if [ -f "$OUTDIR/scans/ports.txt" ]; then
+        pc=$(wc -l < "$OUTDIR/scans/ports.txt")
         echo -e "${GRN}ports: $pc open${NC}\n"
     fi
     
-    if [ -f "$OUTDIR/vulns.txt" ]; then
-        echo -e "${RED}vulns found:${NC}"
-        cat "$OUTDIR/vulns.txt"
+    if [ -f "$OUTDIR/report/vulns.txt" ]; then
+        echo -e "${RED}vulns found (check report/vulns.txt):${NC}"
+        cat "$OUTDIR/report/vulns.txt"
         echo ""
     fi
     
     if [[ ${#MISSING[@]} -gt 0 ]]; then
-        echo -e "${YEL}missing:${NC}"
+        echo -e "${YEL}missing tools:${NC}"
         printf '  %s\n' "${MISSING[@]}"
         echo ""
     fi
