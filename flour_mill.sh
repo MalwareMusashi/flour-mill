@@ -235,6 +235,50 @@ check_wordlists() {
     fi
 }
 
+# install wordlists
+install_wordlists() {
+    echo -e "${YEL}[*] installing wordlists...${NC}\n"
+    
+    # dirb
+    if [ ! -f "/usr/share/wordlists/dirb/common.txt" ]; then
+        echo -e "${BLU}[*] dirb wordlists...${NC}"
+        sudo apt install -y dirb 2>/dev/null
+        [ -f "/usr/share/wordlists/dirb/common.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    # dirbuster
+    if [ ! -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ]; then
+        echo -e "${BLU}[*] dirbuster wordlists...${NC}"
+        sudo apt install -y dirbuster 2>/dev/null
+        [ -f "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    # rockyou
+    if [ ! -f "/usr/share/wordlists/rockyou.txt" ]; then
+        echo -e "${BLU}[*] rockyou...${NC}"
+        if [ -f "/usr/share/wordlists/rockyou.txt.gz" ]; then
+            sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] extracted${NC}" || echo -e "${RED}[-] failed${NC}"
+        else
+            sudo apt install -y wordlists 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt.gz" ] && sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null
+            [ -f "/usr/share/wordlists/rockyou.txt" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+        fi
+    fi
+    
+    # seclists
+    if [ ! -d "/usr/share/seclists" ]; then
+        echo -e "${BLU}[*] seclists...${NC}"
+        sudo apt install -y seclists 2>/dev/null || {
+            # fallback to github
+            sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/seclists 2>/dev/null
+        }
+        [ -d "/usr/share/seclists" ] && echo -e "${GRN}[+] installed${NC}" || echo -e "${RED}[-] failed${NC}"
+    fi
+    
+    echo -e "\n${GRN}wordlists setup done${NC}\n"
+}
+
 # install missing
 install_missing() {
     echo -e "${YEL}[*] installing...${NC}\n"
