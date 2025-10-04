@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# MalwareMusashi
 # flour mill - automated recon wrapper
 # scans stuff, checks vulns, runs the right tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
