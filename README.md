@@ -27,7 +27,7 @@ scans ports, detects OS, checks for CVEs/exploits, suggests tools based on what'
 ## install
 
 ```bash
-git https://github.com/MalwareMusashi/flour-mill
+git clone https://github.com/MalwareMusashi/flour-mill
 cd flour_mill
 chmod +x flour_mill.sh
 ./flour_mill.sh
