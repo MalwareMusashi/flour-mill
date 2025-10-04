@@ -286,7 +286,7 @@ install_missing() {
                 pipx install impacket 2>/dev/null
                 ;;
             enum4linux-ng)
-                pipx install enum4linux-ng 2>/dev/null
+                pipx install git+https://github.com/cddmp/enum4linux-ng 2>/dev/null
                 ;;
             kerbrute)
                 wget -q https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64 -O /tmp/kerbrute
