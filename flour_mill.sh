@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# MalwareMusashi Flour_mill V3.0
-# This is for you Abuelo.
 # flour mill - automated recon wrapper
 # scans stuff, checks vulns, runs the right tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
@@ -286,21 +284,22 @@ install_missing() {
                 pipx install git+https://github.com/Pennyw0rth/NetExec 2>/dev/null
                 ;;
             impacket-*)
-                # all impacket tools come from one package
-                if ! pipx list | grep -q "impacket"; then
+                # impacket tools work better from apt than pipx
+                if ! command -v impacket-secretsdump &>/dev/null; then
                     echo -e "${YEL}[*] installing impacket suite...${NC}"
-                    pipx install impacket 2>/dev/null
                     
-                    # make sure path is updated
-                    pipx ensurepath
-                    
-                    # verify it worked
-                    if command -v impacket-secretsdump &>/dev/null; then
-                        echo -e "${GRN}[+] impacket installed${NC}"
+                    # try apt first (more reliable)
+                    if sudo apt install -y impacket-scripts 2>/dev/null; then
+                        echo -e "${GRN}[+] impacket installed via apt${NC}"
                     else
-                        echo -e "${YEL}[!] impacket installed but not in PATH${NC}"
-                        echo -e "${YEL}    run: source ~/.bashrc${NC}"
-                        echo -e "${YEL}    or restart your terminal${NC}"
+                        # fallback to pipx if apt fails
+                        if pipx install impacket 2>/dev/null; then
+                            pipx ensurepath
+                            echo -e "${GRN}[+] impacket installed via pipx${NC}"
+                            echo -e "${YEL}[!] if commands don't work, try: sudo apt install impacket-scripts${NC}"
+                        else
+                            echo -e "${RED}[!] impacket install failed${NC}"
+                        fi
                     fi
                 fi
                 ;;
