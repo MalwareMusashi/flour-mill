@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# flour mill - automated recon wrapper
+# flour mill V3.0
 # scans stuff, checks vulns, runs the right tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
@@ -246,6 +246,9 @@ install_wordlists() {
 install_missing() {
     echo -e "${YEL}[*] installing...${NC}\n"
     
+    # Track if we've already installed impacket suite to avoid duplicate installs
+    impacket_installed=false
+    
     # see if we need pipx for anything
     need_pipx=false
     for t in "${MISSING[@]}"; do
@@ -284,23 +287,28 @@ install_missing() {
                 pipx install git+https://github.com/Pennyw0rth/NetExec 2>/dev/null
                 ;;
             impacket-*)
-                # impacket tools work better from apt than pipx
-                if ! command -v impacket-secretsdump &>/dev/null; then
-                    echo -e "${YEL}[*] installing impacket suite...${NC}"
+                # Only install impacket suite once for ANY impacket tool
+                # Check if we've already processed impacket in this run
+                if [[ "$impacket_installed" == "false" ]]; then
+                    echo -e "${YEL}[*] installing impacket suite (covers all impacket-* tools)...${NC}"
                     
-                    # try apt first (more reliable)
-                    if sudo apt install -y impacket-scripts 2>/dev/null; then
-                        echo -e "${GRN}[+] impacket installed via apt${NC}"
+                    # Try apt first (more reliable and better PATH setup)
+                    if sudo apt install -y impacket-scripts; then
+                        echo -e "${GRN}[+] impacket suite installed via apt${NC}"
+                        impacket_installed=true
                     else
-                        # fallback to pipx if apt fails
-                        if pipx install impacket 2>/dev/null; then
+                        # Fallback to pipx if apt fails
+                        if pipx install impacket; then
                             pipx ensurepath
-                            echo -e "${GRN}[+] impacket installed via pipx${NC}"
-                            echo -e "${YEL}[!] if commands don't work, try: sudo apt install impacket-scripts${NC}"
+                            echo -e "${GRN}[+] impacket suite installed via pipx${NC}"
+                            echo -e "${YEL}[!] Note: if commands don't work, try: sudo apt install impacket-scripts${NC}"
+                            impacket_installed=true
                         else
-                            echo -e "${RED}[!] impacket install failed${NC}"
+                            echo -e "${RED}[!] impacket installation failed${NC}"
                         fi
                     fi
+                else
+                    echo -e "${GRN}[+] impacket suite already installed (covers $t)${NC}"
                 fi
                 ;;
             enum4linux-ng)
