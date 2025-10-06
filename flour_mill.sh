@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# flour mill V3.0
+# flour mill - automated recon wrapper
 # scans stuff, checks vulns, runs the right tools
 # usage: ./flour_mill.sh [target] or TARGET=ip ./flour_mill.sh
 
@@ -20,32 +20,52 @@ SCAN_TYPE=""
 os=""
 VERSION="3.0"
 
-# update check
+# --- Update Section ---
 if [[ "$1" == "--update" || "$1" == "-u" ]]; then
-    echo -e "${YEL}[*] checking for updates...${NC}"
+    echo -e "${YEL}[*] Checking for updates...${NC}"
     
+    # Find the script's directory and cd into it
     script_dir=$(dirname $(readlink -f "$0"))
+    cd "$script_dir" || { echo -e "${RED}[-] Can't access script directory${NC}"; exit 1; }
     
-    if [[ -d "$script_dir/.git" ]]; then
-        cd "$script_dir"
-        git fetch origin >/dev/null 2>&1
+    # Make sure we're inside a git repo
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        remote=$(git remote | grep -q "origin" && echo "origin" || git remote | head -n1)
         
-        local_hash=$(git rev-parse HEAD)
-        remote_hash=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+        echo -e "${YEL}[*] Current branch: $branch${NC}"
+        echo -e "${YEL}[*] Fetching latest changes from $remote/$branch...${NC}"
         
-        if [[ "$local_hash" == "$remote_hash" ]]; then
-            echo -e "${GRN}[+] already up to date${NC}"
+        # Check if there are uncommitted changes
+        if [[ -n $(git status --porcelain) ]]; then
+            echo -e "${RED}[!] WARNING: You have uncommitted changes.${NC}"
+            echo -e "${YEL}    git reset --hard will discard them.${NC}"
+            read -p "Continue? (y/n): " confirm
+            [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo -e "${YEL}Update cancelled${NC}"; exit 0; }
+        fi
+        
+        git fetch "$remote" "$branch" --quiet
+        
+        if git reset --hard "$remote/$branch" >/dev/null 2>&1; then
+            echo -e "${GRN}[+] Updated successfully to latest version${NC}"
+            
+            # Show what changed
+            echo -e "${BLU}[*] Recent changes:${NC}"
+            git log --oneline -3 --color=always 2>/dev/null || echo "  (no recent commits)"
         else
-            echo -e "${YEL}[*] updating...${NC}"
-            git pull
-            echo -e "${GRN}[+] updated${NC}"
+            echo -e "${RED}[-] Update failed. Check your connection or git settings${NC}"
+            exit 1
         fi
     else
-        echo -e "${RED}not a git repo, can't update${NC}"
-        echo -e "${YEL}reinstall from github or use git clone${NC}"
+        echo -e "${RED}[-] Not a git repository. Can't update${NC}"
+        echo -e "${YEL}[*] To enable updates, reinstall via: ${NC}"
+        echo -e "    git clone <repo_url>"
+        exit 1
     fi
+    
     exit 0
 fi
+# --- End Update Section ---
 
 # version
 if [[ "$1" == "--version" || "$1" == "-v" ]]; then
